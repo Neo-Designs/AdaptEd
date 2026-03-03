@@ -43,7 +43,7 @@ class AIService {
     }
   }
 
-  /// Real Chat method connected to Groq API
+
   Future<String> chatWithAI(String text, String profileName) async {
     final systemPrompt = "$chatbotPersonaPrompt $profileName";
     try {
@@ -56,6 +56,11 @@ class AIService {
 
   /// Chat with the AI using a stream for real-time response feel.
   Stream<String> chatWithAIStream(String message, String learningStyle) async* {
+    if (_groqApiKey.isEmpty) {
+      yield "Config Error: GROQ_API_KEY missing in .env";
+      return;
+    }
+
     final systemPrompt = "$chatbotPersonaPrompt $learningStyle";
     final url = Uri.parse('https://api.groq.com/openai/v1/chat/completions');
 
@@ -65,7 +70,7 @@ class AIService {
       'Authorization': 'Bearer $_groqApiKey',
     });
     request.body = jsonEncode({
-      'model': 'llama3-8b-8192',
+      'model': 'llama-3.1-8b-instant',
       'messages': [
         {'role': 'system', 'content': systemPrompt},
         {'role': 'user', 'content': message},
@@ -75,33 +80,40 @@ class AIService {
 
     try {
       final response = await http.Client().send(request);
+      
       if (response.statusCode != 200) {
-        throw Exception('Groq Stream Error: ${response.statusCode}');
+        AppLogger.error('Stream API Error', tag: 'AIService', error: 'Status: ${response.statusCode}');
+        yield "API Error: ${response.statusCode}";
+        return;
       }
 
       await for (final chunk in response.stream.transform(utf8.decoder)) {
         final lines = chunk.split('\n');
         for (final line in lines) {
+          if (line.trim().isEmpty) continue;
           if (line.startsWith('data: ')) {
             final dataStr = line.substring(6).trim();
             if (dataStr == '[DONE]') break;
+            
             try {
               final data = jsonDecode(dataStr);
-              final content = data['choices'][0]['delta']['content'];
+              final content = data['choices']?[0]?['delta']?['content'];
               if (content != null) yield content;
-            } catch (_) {}
+            } catch (e) {
+              // Ignore partial JSON parse errors usually caused by split chunks
+            }
           }
         }
       }
     } catch (e, stack) {
-      AppLogger.error('AI Stream Error', tag: 'AIService', error: e, stackTrace: stack);
-      yield " [Error: Connection lost]";
+      AppLogger.error('Stream Connection Failed', tag: 'AIService', error: e, stackTrace: stack);
+      yield " [Connection Error: $e]";
     }
   }
 
   /// Generates a quiz based on educational content.
   Future<List<Map<String, dynamic>>> generateQuiz(String content) async {
-    final prompt = "Generate 5 multiple choice questions based on the following text. "
+    final prompt = "Generate 15 multiple choice questions based on the following text. "
         "Return ONLY a JSON array of objects. Each object must have 'question', 'options' (array of strings), and 'correctIndex' (int).\n\nContent:\n$content";
     
     try {
@@ -134,7 +146,8 @@ class AIService {
 
   Future<String> _callGroqAPI(String userContent, {String? systemPrompt}) async {
     if (_groqApiKey.isEmpty) {
-      return "Groq API Key missing. Please check .env";
+      AppLogger.error('API Key Missing', tag: 'AIService', error: 'GROQ_API_KEY not found in .env');
+      return "Config Error: API Key missing. Please check .env";
     }
 
     final url = Uri.parse('https://api.groq.com/openai/v1/chat/completions');
@@ -142,24 +155,30 @@ class AIService {
     if (systemPrompt != null) messages.add({'role': 'system', 'content': systemPrompt});
     messages.add({'role': 'user', 'content': userContent});
 
-    final response = await http.post(
-      url,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $_groqApiKey',
-      },
-      body: jsonEncode({
-        'model': 'llama3-8b-8192',
-        'messages': messages,
-        'temperature': 0.7,
-      }),
-    );
+    try {
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $_groqApiKey',
+        },
+        body: jsonEncode({
+          'model': 'llama-3.1-8b-instant',
+          'messages': messages,
+          'temperature': 0.7,
+        }),
+      );
 
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      return data['choices'][0]['message']['content'];
-    } else {
-      throw Exception('Groq API Error: ${response.statusCode} ${response.body}');
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['choices'][0]['message']['content'];
+      } else {
+        AppLogger.error('API Error', tag: 'AIService', error: 'Status: ${response.statusCode}, Body: ${response.body}');
+        return "API Error (${response.statusCode}): ${response.body}";
+      }
+    } catch (e, stack) {
+      AppLogger.error('Network Error', tag: 'AIService', error: e, stackTrace: stack);
+      return "Network Error: $e";
     }
   }
 }

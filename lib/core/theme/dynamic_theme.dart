@@ -75,7 +75,7 @@ class DynamicTheme extends ChangeNotifier {
     return const Color(0xFF6366F1); // Default Indigo/Purple-ish
   }
 
-  // Requested Missing Colors
+
   Color get secondaryColor => const Color(0xFFFFC107); // Amber
   Color get accentColor => const Color(0xFF9C27B0); // Purple Accent
   Color get scaffoldBackgroundColor => backgroundColor;

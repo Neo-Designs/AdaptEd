@@ -24,7 +24,7 @@ dependencies:
   http: ^1.6.0
   read_pdf_text: ^0.3.1
   flutter_dotenv: ^5.1.0
-  speech_to_text: ^6.6.2
+  speech_to_text: ^7.0.0
 
 dev_dependencies:
   flutter_test:
