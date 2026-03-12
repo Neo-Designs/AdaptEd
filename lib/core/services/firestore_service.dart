@@ -1,13 +1,16 @@
+import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'gamification_service.dart';
-import 'user_service.dart';
+
 import 'ai_service.dart'; // Import AIService
 import '../../features/screening/scoring_engine.dart'; // Import UserTraits
 
 class FirestoreService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
   final GamificationService _gamificationService = GamificationService();
   final AIService _aiService = AIService(); // Instantiate AIService
 
@@ -24,10 +27,21 @@ class FirestoreService {
   User? get currentUser => _auth.currentUser;
 
   // --- 1. PDF Metadata & Summary Logic ---
+  Future<String> uploadPdfToStorage(Uint8List bytes, String fileName, String userId) async {
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final path = 'uploads/$userId/${timestamp}_$fileName';
+    final ref = _storage.ref().child(path);
+    
+    final metadata = SettableMetadata(contentType: 'application/pdf');
+    await ref.putData(bytes, metadata);
+    return await ref.getDownloadURL();
+  }
+
   Future<String> saveLearningMaterial({
     required String title,
     required String summary,
     required String fullText,
+    required String fileUrl,
     required UserTraits userTraits, 
   }) async {
     if (currentUser == null) throw Exception("User not logged in");
@@ -40,6 +54,7 @@ class FirestoreService {
       'title': title,
       'summary': summary,
       'fullText': fullText, 
+      'fileUrl': fileUrl,
       'createdAt': FieldValue.serverTimestamp(),
       'adaptationMetadata': {
          'generatedFor': userTraits.learningProfileName,

@@ -1,10 +1,10 @@
-import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:firebase_storage/firebase_storage.dart';
-import 'package:read_pdf_text/read_pdf_text.dart';
+import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 
 import '../../core/theme/dynamic_theme.dart';
 import '../../core/services/firestore_service.dart';
@@ -25,59 +25,84 @@ class _LibraryScreenState extends State<LibraryScreen> {
   Future<void> _uploadDocument(BuildContext context, DynamicTheme theme) async {
     final user = _firestoreService.currentUser;
     if (user == null) {
-       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("You must be logged in to upload.")));
-       return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("You must be logged in to upload.")));
+      return;
     }
 
     setState(() => _isUploading = true);
-    
+
     try {
-      FilePickerResult? result = await FilePicker.platform.pickFiles(
+      // ── 1. Pick file — withData: true gives bytes on ALL platforms (web + native)
+      final FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
-        allowedExtensions: ['pdf'], 
+        allowedExtensions: ['pdf'],
+        withData: true,
       );
 
-      if (result != null) {
-        File file = File(result.files.single.path!);
-        String fileName = result.files.single.name;
+      if (result == null) return;
+
+      final pickedFile = result.files.single;
+      final String fileName = pickedFile.name;
+      final Uint8List? bytes = pickedFile.bytes;
+
+      if (bytes == null) throw Exception('Could not read file bytes.');
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Processing $fileName — generating summary…")));
+
+      // ── 2. Concurrent Execution: Storage Upload + Text Extraction
+      String fileUrl = '';
+      String extractedText = '';
+      
+      try {
+        // Run both operations simultaneously
+        final results = await Future.wait([
+          _firestoreService.uploadPdfToStorage(bytes, fileName, user.uid),
+          Future(() {
+            final PdfDocument document = PdfDocument(inputBytes: bytes);
+            final text = PdfTextExtractor(document).extractText();
+            document.dispose();
+            return text;
+          }),
+        ]);
         
-        // 1. Extract Text
-        String extractedText = "";
-        try {
-          extractedText = await ReadPdfText.getPDFtext(file.path);
-        } catch (e) {
-          extractedText = "Could not extract text.";
-        }
-
-        // 2. Upload to Firebase Storage
-        String filePath = 'uploads/${user.uid}/${DateTime.now().millisecondsSinceEpoch}_$fileName';
-        await FirebaseStorage.instance.ref(filePath).putFile(file);
-
-        if(!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Uploaded $fileName. Generating summary...")));
-        
-        // 3. Generate Summary via AI
-        String summary = "No summary available.";
-        if (extractedText.length > 50) {
-           summary = await _aiService.generateSummary(extractedText, learningStyle: theme.traits.learningProfileName);
-        }
-
-        // 4. Save Metadata
-        await _firestoreService.saveLearningMaterial(
-          title: fileName, 
-          summary: summary, 
-          fullText: extractedText, 
-          userTraits: theme.traits
-        );
-
-        if(!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Success! $fileName added to library.")));
+        fileUrl = results[0] as String;
+        extractedText = results[1] as String;
+      } catch (e) {
+        extractedText = ''; // AI guard handles empty/short text with a user-facing message
       }
+
+      // ── 3. Trait-based adaptive AI summary (RAG trigger) ──────────────────
+      final traits = theme.traits;
+      // generateAdaptiveSummary handles the < 10 char case internally and
+      // returns the formatted scanned-PDF error message, so we always call it.
+      final String summary = await _aiService.generateAdaptiveSummary(
+        extractedText,
+        isADHD: traits.isADHD,
+        isAutistic: traits.isAutistic,
+        isDyslexic: traits.isDyslexic,
+      );
+
+      // ── 4. One-shot Firestore save (text + fileUrl) ────────────────
+      await _firestoreService.saveLearningMaterial(
+        title: fileName,
+        summary: summary,
+        fullText: extractedText,
+        fileUrl: fileUrl,
+        userTraits: traits,
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("✓ $fileName added to your library!")));
     } catch (e) {
-      if(!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Upload failed: $e")));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Upload failed: $e")));
     } finally {
-      if(mounted) setState(() => _isUploading = false);
+      if (mounted) setState(() => _isUploading = false);
     }
   }
 
@@ -131,18 +156,24 @@ class _LibraryScreenState extends State<LibraryScreen> {
                            title: Text(data['title'] ?? 'Untitled', style: theme.bodyStyle.copyWith(fontWeight: FontWeight.bold)),
                            subtitle: Text("Generated for: ${data['adaptationMetadata']?['generatedFor'] ?? 'You'}", style: const TextStyle(fontSize: 12, color: Colors.grey)),
                            children: [
-                             Padding(
-                               padding: const EdgeInsets.all(16.0),
-                               child: Text(data['summary'] ?? "No summary available."),
-                             ),
-                             TextButton.icon(
-                               onPressed: () {
-                                  // Could navigate to full reader or quiz here
-                               }, 
-                               icon: const Icon(Icons.quiz_outlined),
-                               label: const Text("Take Quiz on this Material")
-                             )
-                           ],
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                              // MarkdownBody renders bold, bullets, headings from AI output
+                              child: MarkdownBody(
+                                data: data['summary'] ?? 'No summary available.',
+                                styleSheet: MarkdownStyleSheet(
+                                  p: theme.bodyStyle,
+                                  h2: theme.titleStyle.copyWith(fontSize: 16),
+                                  listBullet: theme.bodyStyle,
+                                ),
+                              ),
+                            ),
+                            TextButton.icon(
+                              onPressed: () {},
+                              icon: const Icon(Icons.quiz_outlined),
+                              label: const Text("Take Quiz on this Material"),
+                            ),
+                          ],
                          ),
                        );
                      },

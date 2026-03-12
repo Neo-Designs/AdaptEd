@@ -1,17 +1,19 @@
-import 'dart:io';
+import 'dart:typed_data';
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:provider/provider.dart';
-import 'package:read_pdf_text/read_pdf_text.dart';
+import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/theme/dynamic_theme.dart';
 import '../../core/services/ai_service.dart';
-import '../../core/services/gamification_service.dart';
+
 import '../../core/services/firestore_service.dart';
 import '../quiz/assessment_screen.dart';
 
@@ -39,7 +41,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   bool _isListening = false;
   bool _speechEnabled = false;
   String _extractedText = ""; 
-  String? _currentMaterialId; 
+ 
 
   @override
   void initState() {
@@ -278,38 +280,74 @@ class _DashboardScreenState extends State<DashboardScreen> {
                    return _buildActionButtons(theme, msg['text']);
                 }
 
+                // For the AI output, check if we need to chunk it. If it contains ### (our prompt chunk marker),
+                // we'll render it as a series of cards.
+                Widget messageContent;
+                if (isUser) {
+                  messageContent = Text(
+                    msg['text'],
+                    style: GoogleFonts.lexend(
+                      textStyle: theme.bodyStyle.copyWith(color: Colors.white, height: 1.6, letterSpacing: 0.5)
+                    ),
+                  );
+                } else {
+                   // Try to parse JSON array
+                   String rawText = msg['text'].toString().trim();
+                   if (rawText.startsWith('```json')) rawText = rawText.substring(7);
+                   if (rawText.startsWith('```')) rawText = rawText.substring(3);
+                   if (rawText.endsWith('```')) rawText = rawText.substring(0, rawText.length - 3);
+                   rawText = rawText.trim();
+                   
+                   try {
+                     final parsed = jsonDecode(rawText);
+                     if (parsed is List) {
+                        messageContent = Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: parsed.map((item) {
+                            return _buildNeuroCard(
+                              item['title']?.toString() ?? '', 
+                              item['content']?.toString() ?? '', 
+                              item['icon']?.toString() ?? '', 
+                              theme
+                            );
+                          }).toList(),
+                        );
+                     } else {
+                        messageContent = _buildStandardMarkdown(msg['text'], theme);
+                     }
+                   } catch (_) {
+                     // Not JSON, or parsing failed, do standard fallback
+                     messageContent = _buildStandardMarkdown(msg['text'], theme);
+                   }
+                }
+
                 return Align(
                   alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
                   child: Container(
                     margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.all(14),
-                    constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
+                    padding: isUser ? const EdgeInsets.all(16.0) : EdgeInsets.zero, // AI chunks bring their own padding via custom builder
+                    constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.85), // Wider for Cards
                     decoration: BoxDecoration(
-                      color: isUser ? theme.primaryColor : Colors.grey[100],
+                      color: isUser ? const Color(0xFFE3F2FD) : Colors.transparent, // Background handled by inner elements
                       borderRadius: BorderRadius.circular(16),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          msg['text'],
-                          style: theme.bodyStyle.copyWith(
-                            color: isUser ? Colors.white : Colors.black87,
-                          ),
-                        ),
+                        messageContent,
                         if (!isUser) ...[
-                           const SizedBox(height: 4),
-                           GestureDetector(
-                             onTap: () => _speak(msg['text']),
-                             child: Row(
-                               mainAxisSize: MainAxisSize.min,
-                               children: [
-                                 Icon(Icons.volume_up, size: 14, color: Colors.grey[600]),
-                                 const SizedBox(width: 4),
-                                 Text("Read Aloud", style: TextStyle(fontSize: 10, color: Colors.grey[600]))
-                               ],
-                             ),
-                           )
+                          const SizedBox(height: 8),
+                          GestureDetector(
+                            onTap: () => _speak(msg['text']),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.volume_up, size: 14, color: Colors.grey[600]),
+                                const SizedBox(width: 4),
+                                Text("Read Aloud", style: TextStyle(fontSize: 10, color: Colors.grey[600]))
+                              ],
+                            ),
+                          )
                         ]
                       ],
                     ),
@@ -455,67 +493,220 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Future<void> _uploadDocument(BuildContext context) async {
     final user = _firestoreService.currentUser;
     if (user == null) {
-       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("You must be logged in to upload.")));
-       return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("You must be logged in to upload.")));
+      return;
     }
 
     setState(() => _isUploading = true);
-    
+
     try {
-      FilePickerResult? result = await FilePicker.platform.pickFiles(
+      // ── 1. Pick file — withData: true gives bytes on ALL platforms (web + native)
+      final FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
-        allowedExtensions: ['pdf'], 
+        allowedExtensions: ['pdf'],
+        withData: true,
       );
 
-      if (result != null) {
-        File file = File(result.files.single.path!);
-        String fileName = result.files.single.name;
+      if (result == null) return;
+
+      final pickedFile = result.files.single;
+      final String fileName = pickedFile.name;
+      final Uint8List? bytes = pickedFile.bytes;
+
+      if (bytes == null) throw Exception('Could not read file bytes.');
+
+      // ── 2. Concurrent Execution: Storage Upload + Text Extraction
+      String fileUrl = '';
+      String extractedText = '';
+      
+      try {
+        // Run both operations simultaneously
+        final results = await Future.wait([
+          _firestoreService.uploadPdfToStorage(bytes, fileName, user.uid).then((url) => url as String),
+          Future(() {
+            final PdfDocument document = PdfDocument(inputBytes: bytes);
+            final text = PdfTextExtractor(document).extractText();
+            document.dispose();
+            return text;
+          }),
+        ]);
         
-        // 1. Extract Text
-        String extractedText = "";
-        try {
-          extractedText = await ReadPdfText.getPDFtext(file.path);
-          setState(() {
-            _extractedText = extractedText; 
-          });
-        } catch (e) {
-          extractedText = "Could not extract text. Ensure it is a text-based PDF.";
-        }
-
-        // 2. Upload to Firebase
-        String filePath = 'uploads/${user.uid}/${DateTime.now().millisecondsSinceEpoch}_$fileName';
-        await FirebaseStorage.instance.ref(filePath).putFile(file);
-
-        if(!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Uploaded $fileName. Analyzing...")));
-        
-        // 3. Generate Summary
-        final traits = Provider.of<DynamicTheme>(context, listen: false).traits;
-        await _firestoreService.saveChatMessage('ai', "Compiling summary for $fileName...");
-
-        if (extractedText.length > 50) {
-           final summary = await _aiService.generateSummary(extractedText, learningStyle: traits.learningProfileName);
-           
-           final materialId = await _firestoreService.saveLearningMaterial(
-              title: fileName, 
-              summary: summary, 
-              fullText: extractedText, 
-              userTraits: traits
-           );
-           _currentMaterialId = materialId;
-
-           await _firestoreService.saveChatMessage('ai', "Here is the summary:\n\n$summary");
-           await _firestoreService.saveChatMessage('system_action', 'prompt_upload_or_quiz');
-
-        } else {
-           await _firestoreService.saveChatMessage('ai', "The document appears to be empty or image-based. I couldn't read the text.");
-        }
+        fileUrl = results[0] as String;
+        extractedText = results[1] as String;
+        setState(() => _extractedText = extractedText);
+      } catch (e) {
+        extractedText = ''; // AI guard handles empty text with a user-facing message
       }
+
+      if (!mounted) return;
+
+      // \u2500\u2500 3. Trait-based adaptive summary — always call so the scanned-PDF \u2500\u2500\u2500\u2500\u2500\u2500
+      //    error message flows into the chat bubble.
+      final traits = Provider.of<DynamicTheme>(context, listen: false).traits;
+      await _firestoreService.saveChatMessage(
+        'ai', 'Reading $fileName and generating your personalised summary…');
+
+      final String summary = await _aiService.generateAdaptiveSummary(
+        extractedText,
+        isADHD: traits.isADHD,
+        isAutistic: traits.isAutistic,
+        isDyslexic: traits.isDyslexic,
+      );
+
+      // ── 4. One-shot Firestore save (text + summary + fileUrl) ───────────────────────────
+      if (!mounted) return;
+      final materialId = await _firestoreService.saveLearningMaterial(
+        title: fileName,
+        summary: summary,
+        fullText: extractedText,
+        fileUrl: fileUrl,
+        userTraits: traits,
+      );
+
+
+      if (!mounted) return;
+      await _firestoreService.saveChatMessage(
+        'ai', 'Here is your personalised summary for **$fileName**:');
+      await _firestoreService.saveChatMessage(
+        'ai', summary);
+      await _firestoreService.saveChatMessage('system_action', 'prompt_upload_or_quiz');
+
     } catch (e) {
-      if(!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Upload/Analyze failed: $e")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Upload/Analyse failed: $e")));
     } finally {
-      if(mounted) setState(() => _isUploading = false);
+      if (mounted) setState(() => _isUploading = false);
     }
+  }
+
+  /// Splits structured responses by header and wraps each in a visually distinct Card
+  Widget _buildNeuroCard(String title, String content, String icon, DynamicTheme theme) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16.0),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC), // Soft pastel background
+        borderRadius: BorderRadius.circular(16.0),
+        border: Border.all(color: Colors.grey.shade200), // Subtle border
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (title.isNotEmpty) ...[
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (icon.isNotEmpty) ...[
+                    Text(icon, style: const TextStyle(fontSize: 20)),
+                    const SizedBox(width: 8),
+                  ],
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: GoogleFonts.lexend(
+                        textStyle: theme.titleStyle.copyWith(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                          height: 1.6,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+            ],
+            MarkdownBody(
+              data: content.trim(),
+              styleSheet: _getMarkdownStyle(theme),
+              builders: {
+                'strong': _AdhdHighlightBuilder(theme.traits.isADHD),
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Builds standard non-chunked markdown (e.g. Chat/Errors)
+  Widget _buildStandardMarkdown(String text, DynamicTheme theme) {
+     return Container(
+       padding: const EdgeInsets.all(16.0),
+       decoration: BoxDecoration(
+         color: const Color(0xFFF8FAFC),
+         borderRadius: BorderRadius.circular(12),
+       ),
+       child: MarkdownBody(
+          data: text,
+          styleSheet: _getMarkdownStyle(theme),
+       ),
+     );
+  }
+
+  MarkdownStyleSheet _getMarkdownStyle(DynamicTheme theme) {
+    // Dyslexia overrides
+    final isDyslexic = theme.traits.isDyslexic;
+    final double lSpacing = isDyslexic ? 1.5 : 0.5;
+    final double wSpacing = isDyslexic ? 2.0 : 0.0;
+    final double hght = 1.6;
+
+    return MarkdownStyleSheet(
+      p: GoogleFonts.lexend(textStyle: theme.bodyStyle.copyWith(color: Colors.black87, height: hght, letterSpacing: lSpacing, wordSpacing: wSpacing)),
+      strong: GoogleFonts.lexend(textStyle: theme.bodyStyle.copyWith(color: Colors.black87, fontWeight: FontWeight.bold, height: hght, letterSpacing: lSpacing, wordSpacing: wSpacing)),
+      h2: GoogleFonts.lexend(textStyle: theme.titleStyle.copyWith(fontSize: 16, color: Colors.black87, height: hght, letterSpacing: lSpacing, wordSpacing: wSpacing)),
+      h3: GoogleFonts.lexend(textStyle: theme.titleStyle.copyWith(fontSize: 14, color: Colors.black87, height: hght, fontWeight: FontWeight.bold, letterSpacing: lSpacing, wordSpacing: wSpacing)),
+      listBullet: GoogleFonts.lexend(textStyle: theme.bodyStyle.copyWith(color: Colors.black87, height: hght)),
+      blockSpacing: 12.0,
+    );
+  }
+}
+
+// ── Custom Element Builders ───────────────────────────────────────────────────
+
+/// Custom builder to render bold text with alternating highlight colors for ADHD
+class _AdhdHighlightBuilder extends MarkdownElementBuilder {
+  final bool isADHD;
+  _AdhdHighlightBuilder(this.isADHD);
+
+  // Counter to alternate highlights
+  static int _colorIndex = 0;
+  final List<Color> _highlightColors = [
+    const Color(0xFFE3F2FD), // Light Blue
+    const Color(0xFFFFF9C4), // Light Yellow
+    const Color(0xFFE8F5E9), // Light Green
+  ];
+
+  @override
+  Widget visitText(text, TextStyle? preferredStyle) {
+    if (isADHD) {
+      final color = _highlightColors[_colorIndex % _highlightColors.length];
+      _colorIndex++;
+      
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 2.0),
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(4.0),
+        ),
+        child: Text(
+          text.text,
+          style: (preferredStyle ?? const TextStyle()).copyWith(
+            fontWeight: FontWeight.w700,
+            color: Colors.black87,
+          ),
+        ),
+      );
+    }
+    
+    // Default bold styling if not ADHD
+    return Text(
+      text.text,
+      style: (preferredStyle ?? const TextStyle()).copyWith(fontWeight: FontWeight.bold),
+    );
   }
 }

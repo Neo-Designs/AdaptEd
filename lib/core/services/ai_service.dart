@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:google_generative_ai/google_generative_ai.dart';
 import '../utils/logger.dart';
 
 class AIService {
@@ -17,7 +18,7 @@ class AIService {
   static String chatbotPersonaPrompt = 
       "You are AdaptEd AI, a friendly and patient learning companion. "
       "You help users understanding complex topics. "
-      "Keep answers concise but helpful. Adaptation style: ";
+      "Keep answers concise but helpful. Break information into bite-sized chunks using bullet points and short paragraphs. Adaptation style: ";
 
   // --- METHODS ---
 
@@ -40,6 +41,108 @@ class AIService {
     } catch (e, stack) {
       AppLogger.error('Summary generation failed', tag: 'AIService', error: e, stackTrace: stack);
       return "Error generating summary. Please try again later.";
+    }
+  }
+
+  /// Generates a neurodivergent-adapted summary using Grounded Context Injection.
+  ///
+  /// The extracted text is wrapped in delimiters so the model has a clear
+  /// "Source of Truth" and never apologises for not being able to read a file.
+  Future<String> generateAdaptiveSummary(
+    String content, {
+    required bool isADHD,
+    required bool isAutistic,
+    required bool isDyslexic,
+  }) async {
+    // ── Error guard: catch scanned / image-only PDFs early ─────────────────
+    if (content.trim().length < 10) {
+      return '⚠️ **Could not read this PDF.**\n\n'
+          'This document appears to be a scanned image rather than a text-based PDF. '
+          'Please try a PDF with selectable text (not a photo or scan).';
+    }
+
+    // ── Model Router: Gemini vs Groq ───────────────────────────────────────
+    // If the text is extremely large (> 15,000 chars / ~3,000 tokens), route it
+    // to Gemini which handles massive contexts. Otherwise, use Groq for speed.
+    final bool useGemini = content.length > 15000;
+    
+    if (useGemini) {
+      AppLogger.info('Routing to Gemini. Content length: ${content.length}', tag: 'AIService');
+    } else {
+      AppLogger.info('Routing to Groq. Content length: ${content.length}', tag: 'AIService');
+    }
+
+    // ── 1. Build grounded system prompt ────────────────────────────────────
+    final String traitInstructions;
+
+    if (isADHD) {
+      traitInstructions =
+          'Format the output for a learner with ADHD:\n'
+          '- Start the ENTIRE response with a **### ⚡ TL;DR** section containing exactly 3 bullet points summarizing the whole document.\n'
+          '- Use **bold headers** for each topic (## Header).\n'
+          '- Start every bullet point with a relevant emoji.\n'
+          '- Bold (**keyword**) the most important terms so they can be visually highlighted by the app.\n'
+          '- Insert encouraging Progress Markers between sections (e.g., "Great job! Halfway there!").\n'
+          '- Keep each bullet ≤ 15 words.\n'
+          '- End with a section titled **### 📋 Summary Checklist** listing the 3–5 most important takeaways as checkboxes (- [ ] item).';
+    } else if (isAutistic) {
+      traitInstructions =
+          'Format the output for a learner with Autism Spectrum Condition using a Deep Dive structure:\n'
+          '- Use ### Markdown headings for each topic.\n'
+          '- Under each heading write **Why this matters:** followed by a literal, precise explanation.\n'
+          '- Under each heading write **How it works:** with a numbered step-by-step breakdown.\n'
+          '- Ensure concepts are visually spaced out. Do not clump information together.\n'
+          '- Inject a "💡 Did you know?" or "Fun Fact!" callout with extra, literal context where relevant.\n'
+          '- Be literal and unambiguous. Avoid idioms, metaphors, and vague language.\n'
+          '- Do NOT skip steps or assume implied knowledge.';
+    } else if (isDyslexic) {
+      traitInstructions =
+          'Format the output for a learner with Dyslexia:\n'
+          '- Use short paragraphs (2–3 sentences max).\n'
+          '- Use high-contrast bullet points (- item) for all key ideas.\n'
+          '- NEVER have more than 3 bullet points in a row without a visual break (e.g., a new short paragraph or header).\n'
+          '- Prefer words with 1–2 syllables.\n'
+          '- One idea per bullet. No nested bullets. No tables.\n'
+          '- Add a blank line between every paragraph and bullet group.';
+    } else {
+      traitInstructions =
+          'Format the output as a clear Markdown summary:\n'
+          '- Use ### headings for major topics.\n'
+          '- Use bullet points for key facts and takeaways.\n'
+          '- Keep language concise and educational.';
+    }
+
+    final String systemPrompt =
+        'You are the AdaptEd Learning Assistant.\n'
+        'The user has uploaded a PDF and the text has been extracted for you.\n'
+        'Your ONLY job is to summarise the document text provided between the ### SOURCE MATERIAL ### delimiters below.\n'
+        'IMPORTANT RULES:\n'
+        '1. Use ONLY the provided document text as your source of truth.\n'
+        '2. Do NOT apologise for not being able to see or access files — the text is already given to you.\n'
+        '3. Do NOT invent or assume information not present in the text.\n'
+        '4. Do NOT refer to "the document" or "the PDF" — just present the information directly.\n'
+        '5. Chunk the summary into "Bite-Sized" sections.\n'
+        '6. Use Progressive Disclosure: Utilize bulleted lists rather than dense paragraphs to prevent cognitive overload.\n'
+        '7. YOU MUST RETURN ONLY A VALID JSON ARRAY OF OBJECTS. Do not include markdown codeblocks or other text.\n'
+        '   Format each object exactly as: [{"title": "section title", "content": "markdown string", "icon": "emoji icon"}]\n\n'
+        '$traitInstructions';
+
+    // ── 2. Wrap the content in clear delimiters ─────────────────────────────
+    final String userPrompt =
+        '### SOURCE MATERIAL ###\n'
+        '$content\n'
+        '### END SOURCE MATERIAL ###\n\n'
+        'Generate the summary now using ONLY the source material above.';
+
+    try {
+      if (useGemini) {
+        return await _callGeminiAPI(userPrompt, systemPrompt: systemPrompt);
+      } else {
+        return await _callGroqAPI(userPrompt, systemPrompt: systemPrompt);
+      }
+    } catch (e, stack) {
+      AppLogger.error('Adaptive summary failed', tag: 'AIService', error: e, stackTrace: stack);
+      return 'Error generating summary. Please try again later.';
     }
   }
 
@@ -178,6 +281,33 @@ class AIService {
       }
     } catch (e, stack) {
       AppLogger.error('Network Error', tag: 'AIService', error: e, stackTrace: stack);
+      return "Network Error: $e";
+    }
+  }
+
+  Future<String> _callGeminiAPI(String userContent, {String? systemPrompt}) async {
+    if (_geminiApiKey.isEmpty) {
+      AppLogger.error('API Key Missing', tag: 'AIService', error: 'GEMINI_API_KEY not found in .env');
+      return "Config Error: Gemini API Key missing. Please check .env";
+    }
+
+    try {
+      final model = GenerativeModel(
+        model: 'gemini-1.5-flash-latest',
+        apiKey: _geminiApiKey,
+        systemInstruction: systemPrompt != null ? Content.system(systemPrompt) : null,
+      );
+
+      final response = await model.generateContent([Content.text(userContent)]);
+      
+      if (response.text != null && response.text!.isNotEmpty) {
+        return response.text!;
+      } else {
+        AppLogger.error('API Error', tag: 'AIService', error: 'Gemini returned empty response');
+        return "API Error: Gemini returned empty response";
+      }
+    } catch (e, stack) {
+      AppLogger.error('Gemini Network Error', tag: 'AIService', error: e, stackTrace: stack);
       return "Network Error: $e";
     }
   }
