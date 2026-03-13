@@ -33,7 +33,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   // Chat state
   List<Map<String, dynamic>> _messages = [];
-  
+
+  bool _isInitializingStt = false;
   bool _isUploading = false;
   bool _isSpeaking = false;
   bool _isListening = false;
@@ -58,12 +59,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   void _initStt() async {
+  if (_isInitializingStt) return; // Exit if already initializing
+  
+  _isInitializingStt = true; 
+  try {
     _speechEnabled = await _speech.initialize(
-      onError: (val) => debugPrint('STT Error: $val'),
-      onStatus: (val) => debugPrint('STT Status: $val'),
+      onError: (val) {
+        debugPrint('STT Error: $val');
+        _isInitializingStt = false; // Reset on error
+      },
+      onStatus: (val) {
+        debugPrint('STT Status: $val');
+        if (val == 'done' || val == 'notListening') _isInitializingStt = false;
+      },
     );
-    if(mounted) setState(() {});
+  } catch (e) {
+    debugPrint("STT Init Failed: $e");
+  } finally {
+    _isInitializingStt = false;
+    if (mounted) setState(() {});
   }
+}
 
   void _loadChatHistory() {
     _firestoreService.getChatMessages().listen((snapshot) {
@@ -91,8 +107,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   void _listen() async {
+    if (_isInitializingStt) return;
     if (!_speechEnabled) {
-      await _speech.initialize();
+      _initStt();
+          return;
     }
     
     if (_speech.isListening) {
