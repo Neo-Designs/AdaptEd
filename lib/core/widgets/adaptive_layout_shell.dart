@@ -424,20 +424,36 @@ class _AdaptiveLayoutShellState extends State<AdaptiveLayoutShell> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          IconButton(
-            icon: Icon(Icons.abc, size: 28, color: theme.primaryColor),
-            tooltip: "Toggle Dyslexic Font",
-            onPressed: () => context.read<DynamicTheme>().toggleDyslexicFont(),
-          ),
-          const SizedBox(width: 8),
-          IconButton(
-            icon: Icon(
-              theme.focusMode ? Icons.visibility_off : Icons.visibility,
-              size: 24,
-              color: theme.primaryColor,
+          GestureDetector(
+            onTap: () => context.read<DynamicTheme>().toggleDarkMode(),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: theme.primaryColor.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                    color: theme.primaryColor.withValues(alpha: 0.2)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    theme.isDarkMode ? Icons.dark_mode : Icons.light_mode,
+                    size: 16,
+                    color: theme.primaryColor,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    theme.isDarkMode ? "Dark" : "Light",
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: theme.primaryColor,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
             ),
-            tooltip: "Toggle Focus Mode",
-            onPressed: () => context.read<DynamicTheme>().toggleFocusMode(),
           ),
           const SizedBox(width: 16),
           if (user != null)

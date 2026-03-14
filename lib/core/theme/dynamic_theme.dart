@@ -11,10 +11,18 @@ class DynamicTheme extends ChangeNotifier {
   PaletteType? _manualPalette;
   bool _useDyslexicFont = false;
   bool _focusMode = false;
+  bool _isDarkMode = false;
+  bool _highContrast = false; // ← NEW
+  bool _readingRuler = false; // ← NEW
+  double _fontSizeScale = 1.0; // ← NEW: 0.8 = small, 1.0 = normal, 1.3 = large
 
   UserTraits get traits => _traits;
   bool get useDyslexicFont => _useDyslexicFont || _traits.isDyslexic;
   bool get focusMode => _focusMode;
+  bool get isDarkMode => _isDarkMode;
+  bool get highContrast => _highContrast; // ← NEW
+  bool get readingRuler => _readingRuler; // ← NEW
+  double get fontSizeScale => _fontSizeScale; // ← NEW
 
   // ── Palette Resolution ────────────────────────────────────────────────────
   PaletteType get currentPalette {
@@ -24,10 +32,9 @@ class DynamicTheme extends ChangeNotifier {
         : PaletteType.vibrant;
   }
 
-  // ← NEW: used by profile screen auto-detect toggle
   bool get isAutoDetectPalette => _manualPalette == null;
 
-  // ── Trait Setters ─────────────────────────────────────────────────────────
+  // ── Setters ───────────────────────────────────────────────────────────────
   void setTraits(UserTraits newTraits) {
     if (_traits == newTraits) return;
     _traits = newTraits;
@@ -48,6 +55,31 @@ class DynamicTheme extends ChangeNotifier {
     notifyListeners();
   }
 
+  void toggleDarkMode() {
+    _isDarkMode = !_isDarkMode;
+    AppLogger.info('Dark Mode: $_isDarkMode', tag: 'DynamicTheme');
+    notifyListeners();
+  }
+
+  // ← NEW toggles
+  void toggleHighContrast() {
+    _highContrast = !_highContrast;
+    AppLogger.info('High Contrast: $_highContrast', tag: 'DynamicTheme');
+    notifyListeners();
+  }
+
+  void toggleReadingRuler() {
+    _readingRuler = !_readingRuler;
+    AppLogger.info('Reading Ruler: $_readingRuler', tag: 'DynamicTheme');
+    notifyListeners();
+  }
+
+  void setFontSizeScale(double scale) {
+    _fontSizeScale = scale.clamp(0.8, 1.4);
+    AppLogger.info('Font scale: $_fontSizeScale', tag: 'DynamicTheme');
+    notifyListeners();
+  }
+
   void setManualPalette(PaletteType? type) {
     _manualPalette = type;
     AppLogger.info('Manual palette: $type', tag: 'DynamicTheme');
@@ -56,7 +88,6 @@ class DynamicTheme extends ChangeNotifier {
 
   // ══════════════════════════════════════════════════════════════════════════
   // PALETTE 1 — AUTISTIC: Calm Sage
-  // Soft greens, no harsh contrast, minimal borders
   // ══════════════════════════════════════════════════════════════════════════
   static const Color _autisticBg = Color(0xFFE8F0E8);
   static const Color _autisticPrimary = Color(0xFF4A7C59);
@@ -66,7 +97,6 @@ class DynamicTheme extends ChangeNotifier {
 
   // ══════════════════════════════════════════════════════════════════════════
   // PALETTE 2 — DYSLEXIC: Warm Beige
-  // Warm tones, cream background, readable terracotta
   // ══════════════════════════════════════════════════════════════════════════
   static const Color _dyslexicBg = Color(0xFFF5F0E8);
   static const Color _dyslexicPrimary = Color(0xFFC8956C);
@@ -76,7 +106,6 @@ class DynamicTheme extends ChangeNotifier {
 
   // ══════════════════════════════════════════════════════════════════════════
   // PALETTE 3 — ADHD: Electric Focus
-  // High energy blue + hot pink XP for dopamine reward
   // ══════════════════════════════════════════════════════════════════════════
   static const Color _adhdBg = Color(0xFFEBF4FF);
   static const Color _adhdPrimary = Color(0xFF3A86FF);
@@ -86,7 +115,6 @@ class DynamicTheme extends ChangeNotifier {
 
   // ══════════════════════════════════════════════════════════════════════════
   // PALETTE 4 — DYSPRAXIC: Bold Action
-  // Deep purple + vivid orange XP, large tap targets
   // ══════════════════════════════════════════════════════════════════════════
   static const Color _dyspraxicBg = Color(0xFFF3EEFF);
   static const Color _dyspraxicPrimary = Color(0xFF8338EC);
@@ -95,7 +123,7 @@ class DynamicTheme extends ChangeNotifier {
   static const Color _dyspraxicText = Color(0xFF1A0A2E);
 
   // ══════════════════════════════════════════════════════════════════════════
-  // FOCUS MODE — Industrial Slate
+  // FOCUS MODE
   // ══════════════════════════════════════════════════════════════════════════
   static const Color _focusBg = Color(0xFFF7FAFC);
   static const Color _focusPrimary = Color(0xFF2D3748);
@@ -103,6 +131,9 @@ class DynamicTheme extends ChangeNotifier {
   // ── Public Color Tokens ───────────────────────────────────────────────────
 
   Color get primaryColor {
+    // ← high contrast dark uses bright cyan for max visibility
+    if (_highContrast && _isDarkMode) return const Color(0xFF00E5FF);
+    if (_highContrast) return Colors.black;
     if (_focusMode) return _focusPrimary;
     if (_traits.isAutistic && _traits.isADHD) return _adhdPrimary;
     if (_traits.isAutistic) return _autisticPrimary;
@@ -115,6 +146,7 @@ class DynamicTheme extends ChangeNotifier {
   }
 
   Color get xpAccentColor {
+    if (_highContrast) return _isDarkMode ? Colors.yellow : Colors.black;
     if (_traits.isAutistic && !_traits.isADHD) return _autisticXP;
     if (_traits.isDyslexic && !_traits.isADHD) return _dyslexicXP;
     if (_traits.isADHD) return _adhdXP;
@@ -123,6 +155,7 @@ class DynamicTheme extends ChangeNotifier {
   }
 
   Color get secondaryColor {
+    if (_highContrast) return _isDarkMode ? Colors.white70 : Colors.black87;
     if (_traits.isAutistic) return _autisticAccent;
     if (_traits.isDyslexic) return _dyslexicAccent;
     if (_traits.isADHD) return _adhdAccent;
@@ -131,6 +164,9 @@ class DynamicTheme extends ChangeNotifier {
   }
 
   Color get backgroundColor {
+    if (_highContrast && _isDarkMode) return Colors.black;
+    if (_highContrast) return Colors.white;
+    if (_isDarkMode) return const Color(0xFF12121A);
     if (_focusMode) return _focusBg;
     if (_traits.isAutistic && _traits.isADHD) return _autisticBg;
     if (_traits.isAutistic) return _autisticBg;
@@ -143,9 +179,21 @@ class DynamicTheme extends ChangeNotifier {
   }
 
   Color get scaffoldBackgroundColor => backgroundColor;
-  Color get cardColor => Colors.white;
+
+  Color get cardColor {
+    if (_highContrast && _isDarkMode) return const Color(0xFF0A0A0A);
+    if (_highContrast) return Colors.white;
+    return _isDarkMode ? const Color(0xFF1E1E2E) : Colors.white;
+  }
+
+  Color get cardTextColor =>
+      _isDarkMode ? const Color(0xFFE8E8F0) : onSurfaceTextColor;
 
   Color get onSurfaceTextColor {
+    // ← high contrast: maximum contrast text
+    if (_highContrast && _isDarkMode) return Colors.white;
+    if (_highContrast) return Colors.black;
+    if (_isDarkMode) return const Color(0xFFE8E8F0);
     if (_focusMode) return const Color(0xFF1A202C);
     if (_traits.isAutistic) return _autisticText;
     if (_traits.isDyslexic) return _dyslexicText;
@@ -157,6 +205,17 @@ class DynamicTheme extends ChangeNotifier {
   // ── Decoration Tokens ─────────────────────────────────────────────────────
   BoxDecoration get glassDecoration {
     final isMuted = currentPalette == PaletteType.muted;
+    if (_highContrast) {
+      return BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(16),
+        // ← thick visible border in high contrast
+        border: Border.all(
+          color: _isDarkMode ? Colors.white : Colors.black,
+          width: 2,
+        ),
+      );
+    }
     return BoxDecoration(
       color: cardColor,
       borderRadius: BorderRadius.circular(16),
@@ -188,21 +247,29 @@ class DynamicTheme extends ChangeNotifier {
 
   ButtonStyle get primaryButtonStyle => ElevatedButton.styleFrom(
         backgroundColor: buttonColor,
-        foregroundColor: Colors.white,
+        foregroundColor: _highContrast
+            ? (_isDarkMode ? Colors.black : Colors.white)
+            : Colors.white,
         minimumSize: Size(buttonMinWidth, buttonMinHeight),
         padding: EdgeInsets.symmetric(
           horizontal: interactivePadding * 1.5,
           vertical: interactivePadding * 0.75,
         ),
-        shape: RoundedRectangleBorder(borderRadius: buttonBorderRadius),
+        shape: RoundedRectangleBorder(
+          borderRadius: buttonBorderRadius,
+          side: _highContrast
+              ? BorderSide(color: onSurfaceTextColor, width: 2)
+              : BorderSide.none,
+        ),
         elevation: currentPalette == PaletteType.muted ? 0 : 3,
         shadowColor: primaryColor.withValues(alpha: 0.3),
       );
 
-  // ── Typography ────────────────────────────────────────────────────────────
+  // ── Typography — font size scales with _fontSizeScale ────────────────────
   TextStyle get bodyStyle {
+    final base = useDyslexicFont ? 18.0 : 16.0;
     return GoogleFonts.lexend(
-      fontSize: useDyslexicFont ? 18 : 16,
+      fontSize: base * _fontSizeScale,
       letterSpacing: useDyslexicFont ? 0.6 : 0.0,
       height: useDyslexicFont ? 1.8 : 1.5,
       fontWeight: FontWeight.w400,
@@ -211,23 +278,24 @@ class DynamicTheme extends ChangeNotifier {
   }
 
   TextStyle get titleStyle {
+    final base = 24.0 * _fontSizeScale;
     if (useDyslexicFont) {
       return GoogleFonts.lexend(
-        fontSize: 24,
+        fontSize: base,
         fontWeight: FontWeight.w700,
         letterSpacing: 0.8,
         color: onSurfaceTextColor,
       );
     }
     return GoogleFonts.outfit(
-      fontSize: 24,
+      fontSize: base,
       fontWeight: FontWeight.w600,
       color: onSurfaceTextColor,
     );
   }
 
   TextStyle get buttonTextStyle => GoogleFonts.lexend(
-        fontSize: 16,
+        fontSize: 16.0 * _fontSizeScale,
         fontWeight: FontWeight.w600,
         color: Colors.white,
       );
@@ -258,13 +326,11 @@ class DynamicTheme extends ChangeNotifier {
       primaryColor: primaryColor,
       scaffoldBackgroundColor: backgroundColor,
       cardColor: cardColor,
-
       textTheme: TextTheme(
         bodyMedium: bodyStyle,
         titleLarge: titleStyle,
         labelLarge: buttonTextStyle,
       ),
-
       appBarTheme: AppBarTheme(
         backgroundColor: backgroundColor,
         titleTextStyle: titleStyle,
@@ -274,7 +340,6 @@ class DynamicTheme extends ChangeNotifier {
         surfaceTintColor: Colors.transparent,
         iconTheme: IconThemeData(color: onSurfaceTextColor),
       ),
-
       cardTheme: CardThemeData(
         color: cardColor,
         elevation: isMuted ? 0 : 2,
@@ -286,16 +351,11 @@ class DynamicTheme extends ChangeNotifier {
               : BorderSide.none,
         ),
       ),
-
       elevatedButtonTheme: ElevatedButtonThemeData(style: primaryButtonStyle),
-
-      // ← XP bar wired to xpAccentColor
       progressIndicatorTheme: ProgressIndicatorThemeData(
         color: xpAccentColor,
         linearTrackColor: xpAccentColor.withValues(alpha: 0.15),
       ),
-
-      // ← Switch follows primaryColor — fixes both toggles
       switchTheme: SwitchThemeData(
         thumbColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) return Colors.white;
@@ -303,16 +363,16 @@ class DynamicTheme extends ChangeNotifier {
         }),
         trackColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) return primaryColor;
-          return Colors.grey[300];
+          return _isDarkMode ? Colors.grey[700] : Colors.grey[300];
         }),
         trackOutlineColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) return primaryColor;
-          return Colors.grey[400];
+          return _isDarkMode ? Colors.grey[600] : Colors.grey[400];
         }),
       ),
-
       colorScheme: ColorScheme.fromSeed(
         seedColor: primaryColor,
+        brightness: _isDarkMode ? Brightness.dark : Brightness.light,
         primary: primaryColor,
         secondary: secondaryColor,
         surface: cardColor,

@@ -266,7 +266,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 end: Alignment.bottomRight,
               )
             : null,
-        color: isVibrant ? null : Colors.white,
+        color: isVibrant ? null : theme.cardColor,
         borderRadius: BorderRadius.circular(16),
         boxShadow: isVibrant
             ? [
