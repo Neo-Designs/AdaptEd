@@ -1,9 +1,11 @@
+import 'package:adapted/core/services/quiz_service.dart';
+import 'package:adapted/core/services/user_service.dart';
+import 'package:adapted/core/theme/dynamic_theme.dart';
+import 'package:adapted/core/widgets/adapted_button.dart';
+import 'package:adapted/features/screening/scoring_engine.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../core/services/user_service.dart';
-import '../../core/theme/dynamic_theme.dart';
-import '../screening/scoring_engine.dart';
-import '../../core/services/quiz_service.dart';
+
 import 'quiz_result_screen.dart';
 
 class QuizScreen extends StatefulWidget {
@@ -44,47 +46,55 @@ class _QuizScreenState extends State<QuizScreen> {
     });
 
     final traits = _engine.calculateProfile();
-    
-    // Save to Firestore
     await _userService.saveUserProfile(traits);
-    
-    // Update local theme
-    if (mounted) {
-       Provider.of<DynamicTheme>(context, listen: false).setTraits(traits);
-       
-       // Generate description based on traits (Mock logic for now)
-       String description = "You have a unique way of seeing the world! ";
-       if (traits.isAutistic) description += "You likely value structure and clarity. ";
-       if (traits.isADHD) description += "Your mind moves fast and makes amazing connections. ";
-       if (traits.isDyslexic) description += "You may prefer auditory learning and visual storytelling. ";
-       if (traits.isDyspraxic) description += "You learn best by doing and experiencing. ";
-       
-       if (description == "You have a unique way of seeing the world! ") {
-         description += "You are a versatile learner who adapts to many situations.";
-       }
 
-       Navigator.of(context).pushReplacement(
-         MaterialPageRoute(
-           builder: (context) => QuizResultScreen(
-             profileName: traits.learningProfileName,
-             description: description,
-           ),
-         ),
-       );
+    if (mounted) {
+      Provider.of<DynamicTheme>(context, listen: false).setTraits(traits);
+
+      String description = "You have a unique way of seeing the world! ";
+      if (traits.isAutistic)
+        description += "You likely value structure and clarity. ";
+      if (traits.isADHD)
+        description += "Your mind moves fast and makes amazing connections. ";
+      if (traits.isDyslexic)
+        description +=
+            "You may prefer auditory learning and visual storytelling. ";
+      if (traits.isDyspraxic)
+        description += "You learn best by doing and experiencing. ";
+      if (description == "You have a unique way of seeing the world! ") {
+        description +=
+            "You are a versatile learner who adapts to many situations.";
+      }
+
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (context) => QuizResultScreen(
+            profileName: traits.learningProfileName,
+            description: description,
+          ),
+        ),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    // ← Get theme so quiz screen reacts to traits
+    final dt = context.watch<DynamicTheme>();
+
     if (_isAnalyzing) {
-      return const Scaffold(
+      return Scaffold(
+        backgroundColor: dt.backgroundColor,
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              CircularProgressIndicator(),
-              SizedBox(height: 16),
-              Text("Analyzing your learning style..."),
+              CircularProgressIndicator(color: dt.primaryColor),
+              const SizedBox(height: 16),
+              Text(
+                "Analyzing your learning style...",
+                style: dt.bodyStyle,
+              ),
             ],
           ),
         ),
@@ -92,21 +102,25 @@ class _QuizScreenState extends State<QuizScreen> {
     }
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: dt.backgroundColor, // ← trait-aware background
       appBar: AppBar(
-        title: Text("Question ${_currentIndex + 1}/${_questions.length}"),
+        title: Text(
+          "Question ${_currentIndex + 1}/${_questions.length}",
+          style: dt.titleStyle,
+        ),
         elevation: 0,
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        automaticallyImplyLeading: false, 
+        backgroundColor: dt.backgroundColor,
+        automaticallyImplyLeading: false,
       ),
       body: SafeArea(
         child: Column(
           children: [
+            // ← XP-style progress bar using theme colors
             LinearProgressIndicator(
               value: (_currentIndex + 1) / _questions.length,
               backgroundColor: Colors.grey[200],
-              valueColor: const AlwaysStoppedAnimation<Color>(Colors.deepPurple),
+              valueColor: AlwaysStoppedAnimation<Color>(dt.primaryColor),
+              minHeight: 6,
             ),
             Expanded(
               child: PageView.builder(
@@ -123,34 +137,18 @@ class _QuizScreenState extends State<QuizScreen> {
                       children: [
                         Text(
                           question['question'],
-                          style: const TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            height: 1.3,
-                          ),
+                          style: dt.titleStyle.copyWith(height: 1.3),
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 48),
-                        ...(question['answers'] as List<Map<String, dynamic>>).map((answer) {
+                        // ← AdaptedButton replaces ElevatedButton
+                        ...(question['answers'] as List<Map<String, dynamic>>)
+                            .map((answer) {
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 16.0),
-                            child: ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.white,
-                                foregroundColor: Colors.deepPurple,
-                                padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
-                                elevation: 2,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  side: BorderSide(color: Colors.deepPurple.withValues(alpha: 0.2)),
-                                ),
-                              ),
+                            child: AdaptedButton(
+                              label: answer['text'],
                               onPressed: () => _handleAnswer(answer),
-                              child: Text(
-                                answer['text'],
-                                style: const TextStyle(fontSize: 18),
-                                textAlign: TextAlign.center,
-                              ),
                             ),
                           );
                         }),

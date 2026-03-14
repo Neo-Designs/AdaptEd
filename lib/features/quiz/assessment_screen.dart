@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../core/services/ai_service.dart';
 import '../../core/services/gamification_service.dart';
 
@@ -13,12 +14,12 @@ class AssessmentScreen extends StatefulWidget {
 class _AssessmentScreenState extends State<AssessmentScreen> {
   final AIService _aiService = AIService();
   final GamificationService _gamificationService = GamificationService();
-  
+
   List<Map<String, dynamic>> _questions = [];
   bool _isLoading = true;
   int _score = 0;
   bool _submitted = false;
-  Map<int, int> _answers = {};
+  final Map<int, int> _answers = {};
 
   @override
   void initState() {
@@ -32,7 +33,8 @@ class _AssessmentScreenState extends State<AssessmentScreen> {
       setState(() {
         _questions = [
           {
-            'question': "What was the main topic of the last summary you studied?",
+            'question':
+                "What was the main topic of the last summary you studied?",
             'options': ["Option A", "Option B", "Option C", "Option D"],
             'correctIndex': 0,
           },
@@ -51,11 +53,12 @@ class _AssessmentScreenState extends State<AssessmentScreen> {
         });
       }
     } catch (e) {
-       if (mounted) {
+      if (mounted) {
         setState(() {
           _isLoading = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Failed to generate quiz: $e")));
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Failed to generate quiz: $e")));
       }
     }
   }
@@ -64,14 +67,14 @@ class _AssessmentScreenState extends State<AssessmentScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("Knowledge Assessment")),
-      body: _isLoading 
+      body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
               padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
                   const Text(
-                    "Revision Quiz", 
+                    "Revision Quiz",
                     style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                   ),
                   const Text(
@@ -94,19 +97,23 @@ class _AssessmentScreenState extends State<AssessmentScreen> {
                             children: [
                               Text(
                                 "Q${index + 1}: ${q['question']}",
-                                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                style: const TextStyle(
+                                    fontSize: 16, fontWeight: FontWeight.bold),
                               ),
                               const SizedBox(height: 8),
-                              ...List.generate((q['options'] as List).length, (optIndex) {
+                              ...List.generate((q['options'] as List).length,
+                                  (optIndex) {
                                 return RadioListTile<int>(
                                   title: Text(q['options'][optIndex]),
                                   value: optIndex,
                                   groupValue: _answers[index],
-                                  onChanged: _submitted ? null : (val) {
-                                    setState(() {
-                                      _answers[index] = val!;
-                                    });
-                                  },
+                                  onChanged: _submitted
+                                      ? null
+                                      : (val) {
+                                          setState(() {
+                                            _answers[index] = val!;
+                                          });
+                                        },
                                 );
                               }),
                             ],
@@ -122,7 +129,8 @@ class _AssessmentScreenState extends State<AssessmentScreen> {
                         : () async {
                             int correctCount = 0;
                             _answers.forEach((qIndex, aIndex) {
-                              if (_questions[qIndex]['correctIndex'] == aIndex) {
+                              if (_questions[qIndex]['correctIndex'] ==
+                                  aIndex) {
                                 correctCount++;
                               }
                             });
@@ -133,15 +141,19 @@ class _AssessmentScreenState extends State<AssessmentScreen> {
                             });
 
                             // Award XP: 10 per correct answer
-                            await _gamificationService.awardXP(correctCount * GamificationService.xpPerCorrectAnswer);
+                            await _gamificationService.awardXP(correctCount *
+                                GamificationService.xpPerCorrectAnswer);
 
                             if (mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text("You scored $_score/${_questions.length}! You earned ${_score * 10} XP!")),
+                                SnackBar(
+                                    content: Text(
+                                        "You scored $_score/${_questions.length}! You earned ${_score * 10} XP!")),
                               );
                             }
                           },
-                    child: Text(_submitted ? "Return to Dashboard" : "Submit Answers"),
+                    child: Text(
+                        _submitted ? "Return to Dashboard" : "Submit Answers"),
                   ),
                 ],
               ),
