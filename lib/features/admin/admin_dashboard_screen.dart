@@ -2,11 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fl_chart/fl_chart.dart';
-<<<<<<< HEAD
 import '../../core/services/ai_service.dart';
 import '../../core/utils/logger.dart';
-=======
->>>>>>> 9af47b62e82026958e70b302c3e9bc8325dc406b
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -16,7 +13,41 @@ class AdminDashboardScreen extends StatefulWidget {
 }
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
-  
+  final TextEditingController _summaryPromptController = TextEditingController();
+  final TextEditingController _chatPromptController = TextEditingController();
+  final List<Map<String, String>> _adminMessages = [];
+  final TextEditingController _adminChatController = TextEditingController();
+  bool _isChatLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPrompts();
+  }
+
+  @override
+  void dispose() {
+    _summaryPromptController.dispose();
+    _chatPromptController.dispose();
+    _adminChatController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadPrompts() async {
+    try {
+      final doc = await FirebaseFirestore.instance.collection('config').doc('ai_prompts').get();
+      if (doc.exists) {
+        final data = doc.data()!;
+        setState(() {
+          _summaryPromptController.text = data['summaryPrompt'] ?? "";
+          _chatPromptController.text = data['chatbotPersonaPrompt'] ?? "";
+        });
+      }
+    } catch (e) {
+      AppLogger.error("Error loading prompts", error: e);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -30,7 +61,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           ),
         ],
       ),
-      // Use SingleChildScrollView to allow scrolling through all the feeds
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -38,12 +68,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           children: [
             _buildAnalyticsSection(),
             const SizedBox(height: 32),
+            _buildPromptManagementSection(),
+            const SizedBox(height: 32),
+            _buildChatbotSection(),
+            const SizedBox(height: 32),
             _buildUsersFeed(),
             const SizedBox(height: 32),
             _buildRecentDocumentsSection(),
             const SizedBox(height: 32),
             _buildReviewsFeed(),
-            const SizedBox(height: 32), // Bottom padding
+            const SizedBox(height: 32),
           ],
         ),
       ),
@@ -57,7 +91,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       children: [
         const Text("Analytics Dashboard", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
         const SizedBox(height: 16),
-        // Top Row: All cards are now purely static displays
         Row(
           children: [
             _buildCountCard(
@@ -66,15 +99,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               FirebaseFirestore.instance.collection('users').snapshots().map((s) => s.docs.length.toString()),
             ),
             const SizedBox(width: 16),
-<<<<<<< HEAD
-            _buildCountCard("User Reviews", FirebaseFirestore.instance.collection('reviews').snapshots().map((s) => s.docs.length.toString())),
-          ],
-        ),
-        const SizedBox(height: 24),
-        _buildReviewList(),
-=======
             _buildCountCard(
-              "Reviews", 
+              "User Reviews", 
               Icons.star,
               FirebaseFirestore.instance.collection('reviews').snapshots().map((s) => s.docs.length.toString()),
             ),
@@ -97,15 +123,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           ],
         ),
         const SizedBox(height: 24),
+        _buildReviewList(),
+        const SizedBox(height: 24),
         _buildRealTimeChart(), 
         const SizedBox(height: 8),
         const Center(child: Text("Active Users (Last 7 Days)")),
->>>>>>> 9af47b62e82026958e70b302c3e9bc8325dc406b
       ],
     );
   }
 
-<<<<<<< HEAD
   Widget _buildReviewList() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -119,7 +145,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             final docs = snapshot.data!.docs;
             if (docs.isEmpty) return const Text("No reviews found.");
 
-            // Calculate average
             return FutureBuilder<double>(
               future: _calculateAverageRating(),
               builder: (context, avgSnapshot) {
@@ -140,7 +165,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           margin: const EdgeInsets.only(bottom: 8),
                           child: ListTile(
                             leading: const CircleAvatar(child: Icon(Icons.person)),
-                            title: Text(data['text'] ?? '', style: const TextStyle(fontSize: 14)),
+                            title: Text(data['comment'] ?? data['text'] ?? '', style: const TextStyle(fontSize: 14)),
                             subtitle: Text("Rating: ${data['rating'] ?? 'N/A'}", style: const TextStyle(fontSize: 12)),
                           ),
                         );
@@ -166,11 +191,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     return total / snap.docs.length;
   }
 
-  Widget _buildCountCard(String title, Stream<String> countStream) {
-=======
-  // Removed InkWell and onTap - this is now a clean, static metric card
   Widget _buildCountCard(String title, IconData icon, Stream<String> countStream) {
->>>>>>> 9af47b62e82026958e70b302c3e9bc8325dc406b
     return Expanded(
       child: Card(
         clipBehavior: Clip.antiAlias, 
@@ -208,7 +229,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-<<<<<<< HEAD
   Widget _buildPromptManagementSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -243,28 +263,26 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       ],
     );
   }
-=======
-  Widget _buildRealTimeChart() {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance.collection('users').snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return Container(
-            height: 250,
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey[200]!)),
-            child: const Center(child: CircularProgressIndicator()),
-          );
-        }
-        if (snapshot.hasError || !snapshot.hasData) {
-          return const SizedBox(height: 250, child: Center(child: Text("Error loading chart data.")));
-        }
->>>>>>> 9af47b62e82026958e70b302c3e9bc8325dc406b
 
-        List<double> dailyCounts = List.filled(7, 0);
-        final now = DateTime.now();
-        final todayMidnight = DateTime(now.year, now.month, now.day);
+  Widget _buildPromptField(String label, TextEditingController controller) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+        const SizedBox(height: 8),
+        TextField(
+          controller: controller,
+          maxLines: 5,
+          decoration: InputDecoration(
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            filled: true,
+            fillColor: Colors.grey[50],
+          ),
+        ),
+      ],
+    );
+  }
 
-<<<<<<< HEAD
   Widget _buildChatbotSection() {
     return Container(
       height: 400,
@@ -273,7 +291,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.grey[300]!),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10)],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -299,7 +317,74 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   ),
                 );
               },
-=======
+            ),
+          ),
+          if (_isChatLoading) const Padding(padding: EdgeInsets.all(8.0), child: LinearProgressIndicator()),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _adminChatController,
+                  decoration: const InputDecoration(hintText: "Ask about system status..."),
+                  onSubmitted: (_) => _sendAdminChat(),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.send, color: Colors.blueGrey),
+                onPressed: _sendAdminChat,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _sendAdminChat() async {
+    final text = _adminChatController.text.trim();
+    if (text.isEmpty) return;
+
+    setState(() {
+      _adminMessages.add({'role': 'user', 'content': text});
+      _adminChatController.clear();
+      _isChatLoading = true;
+    });
+
+    try {
+      final response = await AIService.generateChatResponse(text, context: "State: Admin Dashboard");
+      setState(() {
+        _adminMessages.add({'role': 'assistant', 'content': response});
+      });
+    } catch (e) {
+      AppLogger.error("Admin chat error", error: e);
+      setState(() {
+        _adminMessages.add({'role': 'assistant', 'content': "Error: Could not reach AI service."});
+      });
+    } finally {
+      setState(() => _isChatLoading = false);
+    }
+  }
+
+  Widget _buildRealTimeChart() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('users').snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Container(
+            height: 250,
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey[200]!)),
+            child: const Center(child: CircularProgressIndicator()),
+          );
+        }
+        if (snapshot.hasError || !snapshot.hasData) {
+          return const SizedBox(height: 250, child: Center(child: Text("Error loading chart data.")));
+        }
+
+        List<double> dailyCounts = List.filled(7, 0);
+        final now = DateTime.now();
+        final todayMidnight = DateTime(now.year, now.month, now.day);
+
         for (var doc in snapshot.data!.docs) {
           final data = doc.data() as Map<String, dynamic>;
           final Timestamp? timestamp = data['lastUpdated'] ?? data['createdAt'];
@@ -372,7 +457,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   belowBarData: BarAreaData(show: true, color: Colors.blue.withOpacity(0.1)),
                 ),
               ],
->>>>>>> 9af47b62e82026958e70b302c3e9bc8325dc406b
             ),
           ),
         );
@@ -394,7 +478,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         ),
         const SizedBox(height: 16),
         Container(
-          height: 350, // Constrained height with internal scrolling
+          height: 350, 
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(12),
@@ -668,7 +752,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   final data = docs[index].data() as Map<String, dynamic>;
                   final email = data['userEmail'] ?? 'Anonymous';
                   final rating = data['rating'] ?? 5;
-                  final comment = data['comment'] ?? 'No comment provided.';
+                  final comment = data['comment'] ?? data['text'] ?? 'No comment provided.';
 
                   return Padding(
                     padding: const EdgeInsets.symmetric(vertical: 8.0),

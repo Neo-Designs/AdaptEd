@@ -186,6 +186,11 @@ class AIService {
     }
   }
 
+  /// Static alias for chatWithAI to support context-based routing.
+  static Future<String> generateChatResponse(String text, {String? context, void Function(String)? onWait}) async {
+    return await AIService().chatWithAI(text, context ?? "General", onWait: onWait);
+  }
+
   /// Chat with the AI using a stream for real-time response feel.
   Stream<String> chatWithAIStream(String message, String learningStyle) async* {
     if (_groqApiKey.isEmpty) {
