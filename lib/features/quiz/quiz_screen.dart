@@ -52,15 +52,19 @@ class _QuizScreenState extends State<QuizScreen> {
       Provider.of<DynamicTheme>(context, listen: false).setTraits(traits);
 
       String description = "You have a unique way of seeing the world! ";
-      if (traits.isAutistic)
+      if (traits.isAutistic) {
         description += "You likely value structure and clarity. ";
-      if (traits.isADHD)
+      }
+      if (traits.isADHD) {
         description += "Your mind moves fast and makes amazing connections. ";
-      if (traits.isDyslexic)
+      }
+      if (traits.isDyslexic) {
         description +=
             "You may prefer auditory learning and visual storytelling. ";
-      if (traits.isDyspraxic)
+      }
+      if (traits.isDyspraxic) {
         description += "You learn best by doing and experiencing. ";
+      }
       if (description == "You have a unique way of seeing the world! ") {
         description +=
             "You are a versatile learner who adapts to many situations.";

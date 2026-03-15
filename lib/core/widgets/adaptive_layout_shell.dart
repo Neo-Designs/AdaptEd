@@ -274,8 +274,9 @@ class _AdaptiveLayoutShellState extends State<AdaptiveLayoutShell> {
       selectedIndex: currentIndex,
       onDestinationSelected: (index) {
         final route = _bottomNavItems[index]['route'] as String;
-        if (currentRoute != route)
+        if (currentRoute != route) {
           Navigator.pushReplacementNamed(context, route);
+        }
       },
       destinations: _bottomNavItems.map((item) {
         return NavigationDestination(
@@ -400,8 +401,9 @@ class _AdaptiveLayoutShellState extends State<AdaptiveLayoutShell> {
         selected: isSelected,
         onTap: () {
           if (isDrawer) Navigator.pop(context);
-          if (currentRoute != route)
+          if (currentRoute != route) {
             Navigator.pushReplacementNamed(context, route);
+          }
         },
         contentPadding: showLabel
             ? const EdgeInsets.symmetric(horizontal: 12)

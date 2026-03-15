@@ -118,10 +118,12 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     return StreamBuilder<QuerySnapshot>(
       stream: _firestoreService.getQuizResults(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData)
+        if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
-        if (snapshot.data!.docs.isEmpty)
+        }
+        if (snapshot.data!.docs.isEmpty) {
           return const Text("No quizzes taken yet.");
+        }
 
         return ListView.builder(
           shrinkWrap: true,
@@ -158,10 +160,12 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     return StreamBuilder<QuerySnapshot>(
       stream: _firestoreService.getActivityLogs(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData)
+        if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
-        if (snapshot.data!.docs.isEmpty)
+        }
+        if (snapshot.data!.docs.isEmpty) {
           return const Text("No recent activity.");
+        }
 
         return ListView.builder(
           shrinkWrap: true,

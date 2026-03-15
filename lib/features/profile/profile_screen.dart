@@ -505,8 +505,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   String _getPaletteName(DynamicTheme theme) {
-    if (theme.traits.isAutistic && theme.traits.isADHD)
+    if (theme.traits.isAutistic && theme.traits.isADHD) {
       return 'Calm Focus Blend';
+    }
     if (theme.traits.isAutistic) return 'Calm Sage';
     if (theme.traits.isDyslexic) return 'Warm Beige';
     if (theme.traits.isADHD) return 'Electric Focus';
@@ -515,15 +516,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   String _getPaletteDescription(DynamicTheme theme) {
-    if (theme.traits.isAutistic && theme.traits.isADHD)
+    if (theme.traits.isAutistic && theme.traits.isADHD) {
       return 'Sage greens with electric blue accents';
-    if (theme.traits.isAutistic)
+    }
+    if (theme.traits.isAutistic) {
       return 'Soft greens · no harsh contrast · minimal borders';
-    if (theme.traits.isDyslexic)
+    }
+    if (theme.traits.isDyslexic) {
       return 'Warm creams · readable terracotta · wide spacing';
+    }
     if (theme.traits.isADHD) return 'Electric blue · hot pink XP · high energy';
-    if (theme.traits.isDyspraxic)
+    if (theme.traits.isDyspraxic) {
       return 'Bold purple · vivid orange · large tap targets';
+    }
     return 'Adapts to your learning profile';
   }
 

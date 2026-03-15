@@ -35,7 +35,6 @@ class _DashboardScreenState extends State<DashboardScreen>
   final FlutterTts _flutterTts = FlutterTts();
   final stt.SpeechToText _speech = stt.SpeechToText();
 
-  // ── State ─────────────────────────────────────────────────────────────────
   List<Map<String, dynamic>> _messages = [];
   bool _isUploading = false;
   bool _isSpeaking = false;
@@ -49,16 +48,19 @@ class _DashboardScreenState extends State<DashboardScreen>
   String _typingDisplayText = '';
   Timer? _typingTimer;
 
+  // ← NEW: user is composing text
+  bool _userIsTyping = false;
+
   // ── Review ────────────────────────────────────────────────────────────────
   int _reviewStars = 0;
   final TextEditingController _reviewController = TextEditingController();
   bool _reviewSubmitted = false;
 
-  // ← NEW: Reactions & Confetti
+  // ── Reactions & Confetti ──────────────────────────────────────────────────
   final Map<int, String?> _messageReactions = {};
   bool _showConfetti = false;
 
-  // ← NEW: Reading ruler
+  // ── Reading ruler ─────────────────────────────────────────────────────────
   double _rulerY = 200.0;
 
   @override
@@ -67,12 +69,20 @@ class _DashboardScreenState extends State<DashboardScreen>
     _initTts();
     _initStt();
     _loadChatHistory();
+    // ← listen for typing state
+    _chatController.addListener(() {
+      final typing = _chatController.text.isNotEmpty;
+      if (typing != _userIsTyping) {
+        setState(() => _userIsTyping = typing);
+      }
+    });
   }
 
   @override
   void dispose() {
     _typingTimer?.cancel();
     _reviewController.dispose();
+    _chatController.dispose();
     super.dispose();
   }
 
@@ -98,20 +108,104 @@ class _DashboardScreenState extends State<DashboardScreen>
           .map((doc) => doc.data() as Map<String, dynamic>)
           .toList();
       if (mounted) {
-        setState(() {
-          _messages = messages;
-          if (_messages.isEmpty) {
-            _messages.add({
-              'role': 'ai',
-              'text':
-                  'Hello! I\'m your adaptive learning assistant. Upload a document to get a summary or ask me a question!',
-              'timestamp': DateTime.now().millisecondsSinceEpoch,
-            });
-          }
-        });
+        setState(() => _messages = messages);
         _scrollToBottom();
       }
     });
+  }
+
+  void _showChatHistory(DynamicTheme theme) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: theme.cardColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      isScrollControlled: true,
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        maxChildSize: 0.9,
+        minChildSize: 0.3,
+        expand: false,
+        builder: (ctx, scrollCtrl) => Column(
+          children: [
+            // ── Handle bar ──
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.symmetric(vertical: 12),
+              decoration: BoxDecoration(
+                color: theme.onSurfaceTextColor.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+
+            // ── Header ──
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+              child: Row(
+                children: [
+                  Icon(Icons.history_rounded,
+                      color: theme.primaryColor, size: 20),
+                  const SizedBox(width: 8),
+                  Text("Chat History",
+                      style: theme.titleStyle.copyWith(fontSize: 18)),
+                  const Spacer(),
+                  // ← New chat button
+                  GestureDetector(
+                    onTap: () {
+                      setState(() => _messages = []);
+                      Navigator.pop(ctx);
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: theme.primaryColor,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.add, color: Colors.white, size: 14),
+                          const SizedBox(width: 4),
+                          Text("New chat",
+                              style: theme.bodyStyle
+                                  .copyWith(color: Colors.white, fontSize: 12)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Divider(
+                height: 1,
+                color: theme.onSurfaceTextColor.withValues(alpha: 0.1)),
+
+            // ── Placeholder — backend will populate this ──
+            Expanded(
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.history_rounded,
+                        size: 48,
+                        color: theme.onSurfaceTextColor.withValues(alpha: 0.2)),
+                    const SizedBox(height: 12),
+                    Text(
+                      "Session history coming soon",
+                      style: theme.bodyStyle.copyWith(
+                        color: theme.onSurfaceTextColor.withValues(alpha: 0.4),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _startTypingAnimation(int messageIndex, String fullText) {
@@ -147,7 +241,6 @@ class _DashboardScreenState extends State<DashboardScreen>
     });
   }
 
-  // ← NEW: Confetti trigger
   void _checkXpMilestone(int xp) {
     if (xp > 0 && xp % 100 == 0) {
       setState(() => _showConfetti = true);
@@ -211,47 +304,49 @@ class _DashboardScreenState extends State<DashboardScreen>
   Widget build(BuildContext context) {
     final theme = context.watch<DynamicTheme>();
 
-    // ← Wrap in Stack for confetti + reading ruler overlays
     return Stack(
       children: [
         Scaffold(
           backgroundColor: theme.backgroundColor,
           body: SafeArea(
-            child: Padding(
-              padding: EdgeInsets.all(theme.interactivePadding),
-              child: Column(
-                children: [
-                  if (_firestoreService.currentUser != null)
-                    _buildProfileHeader(
+            child: Column(
+              children: [
+                // XP Header
+                if (_firestoreService.currentUser != null)
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(theme.interactivePadding,
+                        theme.interactivePadding, theme.interactivePadding, 0),
+                    child: _buildProfileHeader(
                         theme, _firestoreService.currentUser!.uid),
-                  Expanded(
-                    child: Column(
-                      children: [
-                        Expanded(child: _buildChatSection(theme)),
-                        const SizedBox(height: 12),
-                        _buildReviewSection(theme),
-                      ],
-                    ),
                   ),
-                ],
-              ),
+
+                // ← Main chat area takes all remaining space
+                Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(
+                        horizontal: theme.interactivePadding),
+                    child: _buildChatArea(theme),
+                  ),
+                ),
+
+                // ← Review section at very bottom
+                Padding(
+                  padding: EdgeInsets.fromLTRB(theme.interactivePadding, 8,
+                      theme.interactivePadding, theme.interactivePadding),
+                  child: _buildReviewSection(theme),
+                ),
+              ],
             ),
           ),
         ),
-
-        // ← Reading ruler overlay
         if (theme.readingRuler)
           _ReadingRuler(
             rulerY: _rulerY,
             color: theme.primaryColor,
             onDrag: (y) => setState(() => _rulerY = y),
           ),
-
-        // ← Confetti overlay
         if (_showConfetti)
-          IgnorePointer(
-            child: _ConfettiOverlay(color: theme.xpAccentColor),
-          ),
+          IgnorePointer(child: _ConfettiOverlay(color: theme.xpAccentColor)),
       ],
     );
   }
@@ -271,7 +366,6 @@ class _DashboardScreenState extends State<DashboardScreen>
         final streak = data['streak'] ?? 0;
         final xpProgress = (xp % 500) / 500;
 
-        // Check XP milestone
         WidgetsBinding.instance
             .addPostFrameCallback((_) => _checkXpMilestone(xp));
 
@@ -300,14 +394,12 @@ class _DashboardScreenState extends State<DashboardScreen>
                         if (streak > 0) ...[
                           const Text("🔥", style: TextStyle(fontSize: 16)),
                           const SizedBox(width: 4),
-                          Text(
-                            "$streak day${streak == 1 ? '' : 's'}",
-                            style: theme.bodyStyle.copyWith(
-                              fontSize: 12,
-                              color: theme.xpAccentColor,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
+                          Text("$streak day${streak == 1 ? '' : 's'}",
+                              style: theme.bodyStyle.copyWith(
+                                fontSize: 12,
+                                color: theme.xpAccentColor,
+                                fontWeight: FontWeight.w600,
+                              )),
                         ],
                       ],
                     ),
@@ -323,85 +415,405 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  // ── Chat Section ──────────────────────────────────────────────────────────
-  Widget _buildChatSection(DynamicTheme theme) {
+  // ── Main Chat Area (Claude-style) ─────────────────────────────────────────
+  Widget _buildChatArea(DynamicTheme theme) {
+    final hasMessages = _messages.isNotEmpty;
+
+    return Column(
+      children: [
+        // ── Messages / Empty state ──────────────────────────────────────────
+        Expanded(
+          child:
+              hasMessages ? _buildMessagesList(theme) : _buildEmptyState(theme),
+        ),
+
+        const SizedBox(height: 8),
+
+        // ── Bottom input bar (Claude-style) ─────────────────────────────────
+        _buildBottomInputBar(theme),
+      ],
+    );
+  }
+
+  // ── Empty State ───────────────────────────────────────────────────────────
+  Widget _buildEmptyState(DynamicTheme theme) {
+    final hour = DateTime.now().hour;
+    final greeting = hour < 12
+        ? 'Good morning'
+        : hour < 17
+            ? 'Good afternoon'
+            : 'Good evening';
+
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              color: theme.primaryColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(20),
+              border:
+                  Border.all(color: theme.primaryColor.withValues(alpha: 0.3)),
+            ),
+            child:
+                Icon(Icons.auto_awesome, size: 32, color: theme.primaryColor),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            "$greeting! ✨",
+            style: theme.titleStyle.copyWith(fontSize: 22),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            "Upload a document or ask me anything",
+            style: theme.bodyStyle.copyWith(
+              color: theme.onSurfaceTextColor.withValues(alpha: 0.5),
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 32),
+          // ← Suggestion cards
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            alignment: WrapAlignment.center,
+            children: [
+              _buildSuggestionCard(theme, "📄", "Upload a PDF",
+                  "Upload a document to get started"),
+              _buildSuggestionCard(
+                  theme, "🧠", "Quiz me", "Test your knowledge"),
+              _buildSuggestionCard(
+                  theme, "💬", "Ask anything", "I'm here to help you learn"),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSuggestionCard(
+      DynamicTheme theme, String emoji, String title, String subtitle) {
+    return GestureDetector(
+      onTap: () {
+        if (title == "Upload a PDF") {
+          _uploadDocument(context);
+        } else {
+          _chatController.text = subtitle;
+          FocusScope.of(context).requestFocus(FocusNode());
+        }
+      },
+      child: Container(
+        width: 140,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: theme.cardColor,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+              color: theme.onSurfaceTextColor.withValues(alpha: 0.1)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(emoji, style: const TextStyle(fontSize: 22)),
+            const SizedBox(height: 8),
+            Text(title,
+                style: theme.bodyStyle.copyWith(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 2),
+            Text(subtitle,
+                style: theme.bodyStyle.copyWith(
+                  fontSize: 11,
+                  color: theme.onSurfaceTextColor.withValues(alpha: 0.5),
+                )),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Messages List ─────────────────────────────────────────────────────────
+  Widget _buildMessagesList(DynamicTheme theme) {
+    return ListView.builder(
+      controller: _scrollController,
+      padding: const EdgeInsets.fromLTRB(0, 12, 0, 8),
+      // +1 for AI typing, +1 for user typing bubble
+      itemCount:
+          _messages.length + (_isAiTyping ? 1 : 0) + (_userIsTyping ? 1 : 0),
+      itemBuilder: (context, index) {
+        // ← User typing bubble
+        if (_userIsTyping &&
+            index == _messages.length + (_isAiTyping ? 1 : 0)) {
+          return _buildUserTypingBubble(theme);
+        }
+
+        // ← AI thinking indicator
+        if (_isAiTyping && index == _messages.length) {
+          return _buildTypingIndicator(theme);
+        }
+
+        final msg = _messages[index];
+        final isUser = msg['role'] == 'user';
+        final isAction = msg['role'] == 'system_action';
+
+        if (isAction) return _buildActionButtons(theme, msg['text']);
+
+        final isCurrentlyTyping = _typingMessageIndex == index;
+        final displayText =
+            isCurrentlyTyping ? _typingDisplayText : msg['text'].toString();
+
+        return _buildMessageBubble(
+            context, theme, msg, isUser, displayText, isCurrentlyTyping, index);
+      },
+    );
+  }
+
+  // ← NEW: User typing bubble (shows while composing)
+  Widget _buildUserTypingBubble(DynamicTheme theme) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          Container(
+            constraints: const BoxConstraints(maxWidth: 240),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              color: theme.primaryColor.withValues(alpha: 0.15),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(18),
+                topRight: Radius.circular(18),
+                bottomLeft: Radius.circular(18),
+                bottomRight: Radius.circular(4),
+              ),
+              border:
+                  Border.all(color: theme.primaryColor.withValues(alpha: 0.3)),
+            ),
+            child: Text(
+              _chatController.text,
+              style: theme.bodyStyle.copyWith(
+                color: theme.primaryColor,
+                height: 1.4,
+              ),
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: theme.primaryColor.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(Icons.person, size: 14, color: theme.primaryColor),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Bottom Input Bar (Claude-style) ───────────────────────────────────────
+  Widget _buildBottomInputBar(DynamicTheme theme) {
     return Container(
       decoration: BoxDecoration(
         color: theme.cardColor,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(20),
         border:
-            Border.all(color: theme.onSurfaceTextColor.withValues(alpha: 0.08)),
+            Border.all(color: theme.onSurfaceTextColor.withValues(alpha: 0.1)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 12,
+            offset: const Offset(0, -2),
+          ),
+        ],
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
+          // ← Quick action chips row
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+            child: _buildQuickActionChips(theme),
+          ),
+
+          // ← Text input row
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: theme.primaryColor,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(Icons.auto_awesome,
-                      color: Colors.white, size: 16),
+                // Upload button
+                _inputIconButton(
+                  icon: Icons.attach_file_rounded,
+                  color: theme.primaryColor,
+                  tooltip: "Upload PDF",
+                  onTap: () => _uploadDocument(context),
                 ),
-                const SizedBox(width: 10),
-                Text("Learning Assistant",
-                    style: theme.titleStyle.copyWith(fontSize: 17)),
-                const Spacer(),
-                IconButton(
-                  icon: Icon(
-                    _isListening ? Icons.mic : Icons.mic_none,
-                    color: _isListening ? Colors.red : theme.primaryColor,
+
+                // Text field
+                Expanded(
+                  child: TextField(
+                    controller: _chatController,
+                    maxLines: 4,
+                    minLines: 1,
+                    textInputAction: TextInputAction.newline,
+                    decoration: InputDecoration(
+                      hintText: "Ask anything...",
+                      hintStyle: theme.bodyStyle.copyWith(
+                        color: theme.onSurfaceTextColor.withValues(alpha: 0.35),
+                      ),
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 4, vertical: 8),
+                    ),
+                    style: theme.bodyStyle,
+                    onSubmitted: (_) => _sendMessage(theme),
                   ),
-                  onPressed: _listen,
-                  tooltip: "Voice Input",
+                ),
+
+                // Mic button
+                _inputIconButton(
+                  icon: _isListening ? Icons.mic : Icons.mic_none_rounded,
+                  color: _isListening
+                      ? Colors.red
+                      : theme.onSurfaceTextColor.withValues(alpha: 0.4),
+                  tooltip: "Voice input",
+                  onTap: _listen,
+                ),
+
+                // Clear button
+                _inputIconButton(
+                  icon: Icons.history_rounded,
+                  color: theme.onSurfaceTextColor.withValues(alpha: 0.4),
+                  tooltip: "Chat history",
+                  onTap: () => _showChatHistory(theme),
+                ),
+
+                // Send button — only shows when text entered
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 200),
+                  child: _userIsTyping
+                      ? GestureDetector(
+                          key: const ValueKey('send'),
+                          onTap: () => _sendMessage(theme),
+                          child: Container(
+                            width: 36,
+                            height: 36,
+                            margin: const EdgeInsets.only(left: 4),
+                            decoration: BoxDecoration(
+                              color: theme.primaryColor,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(Icons.arrow_upward_rounded,
+                                color: Colors.white, size: 18),
+                          ),
+                        )
+                      : const SizedBox(key: ValueKey('empty'), width: 4),
                 ),
               ],
             ),
           ),
-          Divider(
-              height: 1,
-              color: theme.onSurfaceTextColor.withValues(alpha: 0.08)),
-          Expanded(
-            child: ListView.builder(
-              controller: _scrollController,
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-              itemCount: _messages.length + (_isAiTyping ? 1 : 0),
-              itemBuilder: (context, index) {
-                if (_isAiTyping && index == _messages.length) {
-                  return _buildTypingIndicator(theme);
-                }
 
-                final msg = _messages[index];
-                final isUser = msg['role'] == 'user';
-                final isAction = msg['role'] == 'system_action';
-
-                if (isAction) return _buildActionButtons(theme, msg['text']);
-
-                final isCurrentlyTyping = _typingMessageIndex == index;
-                final displayText = isCurrentlyTyping
-                    ? _typingDisplayText
-                    : msg['text'].toString();
-
-                return _buildMessageBubble(
-                  context,
-                  theme,
-                  msg,
-                  isUser,
-                  displayText,
-                  isCurrentlyTyping,
-                  index,
-                );
-              },
+          // ← Upload progress
+          if (_isUploading)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+              child: LinearProgressIndicator(
+                color: theme.xpAccentColor,
+                borderRadius: BorderRadius.circular(4),
+              ),
             ),
-          ),
-          _buildQuickActionChips(theme),
-          _buildInputArea(theme),
         ],
+      ),
+    );
+  }
+
+  Widget _inputIconButton({
+    required IconData icon,
+    required Color color,
+    required String tooltip,
+    required VoidCallback onTap,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 36,
+          height: 36,
+          margin: const EdgeInsets.symmetric(horizontal: 2),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, size: 20, color: color),
+        ),
+      ),
+    );
+  }
+
+  // ── Quick Action Chips ────────────────────────────────────────────────────
+  Widget _buildQuickActionChips(DynamicTheme theme) {
+    final chips = [
+      {
+        'label': '📝 Summarize',
+        'prompt': 'Please summarize my uploaded material'
+      },
+      {
+        'label': '🧪 Quiz me',
+        'prompt': 'Create a short quiz based on my material'
+      },
+      {
+        'label': '🔍 Explain simpler',
+        'prompt': 'Explain the main concepts in simpler terms'
+      },
+      {
+        'label': '💡 Key points',
+        'prompt': 'What are the key points I should remember?'
+      },
+    ];
+
+    return SizedBox(
+      height: 28,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: chips.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 6),
+        itemBuilder: (context, index) {
+          final chip = chips[index];
+          return GestureDetector(
+            onTap: () {
+              _chatController.text = chip['prompt']!;
+              _sendMessage(theme);
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              decoration: BoxDecoration(
+                color: theme.primaryColor.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                    color: theme.primaryColor.withValues(alpha: 0.3)),
+              ),
+              child: Text(
+                chip['label']!,
+                style: GoogleFonts.lexend(
+                  fontSize: 11,
+                  color: theme.primaryColor,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -429,6 +841,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     } catch (_) {
       timestamp = null;
     }
+
     final timeStr = timestamp != null
         ? '${timestamp.hour.toString().padLeft(2, '0')}:${timestamp.minute.toString().padLeft(2, '0')}'
         : '';
@@ -494,8 +907,6 @@ class _DashboardScreenState extends State<DashboardScreen>
                       theme, msg, isUser, displayText, isCurrentlyTyping),
                 ),
                 const SizedBox(height: 4),
-
-                // ← Timestamp + Read aloud + Reactions
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -508,7 +919,6 @@ class _DashboardScreenState extends State<DashboardScreen>
                           )),
                     if (!isUser) ...[
                       const SizedBox(width: 8),
-                      // Read aloud
                       GestureDetector(
                         onTap: () => _speak(msg['text']),
                         child: Row(
@@ -532,61 +942,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                         ),
                       ),
                       const SizedBox(width: 8),
-
-                      // ← 👍 reaction
-                      GestureDetector(
-                        onTap: () => setState(() {
-                          _messageReactions[index] =
-                              _messageReactions[index] == 'up' ? null : 'up';
-                        }),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 150),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: _messageReactions[index] == 'up'
-                                ? theme.primaryColor.withValues(alpha: 0.2)
-                                : Colors.transparent,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text("👍",
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: _messageReactions[index] == 'up'
-                                    ? theme.primaryColor
-                                    : null,
-                              )),
-                        ),
-                      ),
+                      _reactionButton(theme, index, 'up', '👍'),
                       const SizedBox(width: 2),
-
-                      // ← 👎 reaction
-                      GestureDetector(
-                        onTap: () => setState(() {
-                          _messageReactions[index] =
-                              _messageReactions[index] == 'down'
-                                  ? null
-                                  : 'down';
-                        }),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 150),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: _messageReactions[index] == 'down'
-                                ? Colors.red.withValues(alpha: 0.15)
-                                : Colors.transparent,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text("👎",
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: _messageReactions[index] == 'down'
-                                    ? Colors.red
-                                    : null,
-                              )),
-                        ),
-                      ),
+                      _reactionButton(theme, index, 'down', '👎'),
                     ],
                   ],
                 ),
@@ -610,6 +968,35 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
+  Widget _reactionButton(
+      DynamicTheme theme, int index, String type, String emoji) {
+    final isActive = _messageReactions[index] == type;
+    return GestureDetector(
+      onTap: () => setState(() {
+        _messageReactions[index] = isActive ? null : type;
+      }),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          color: isActive
+              ? (type == 'up'
+                  ? theme.primaryColor.withValues(alpha: 0.2)
+                  : Colors.red.withValues(alpha: 0.15))
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(emoji,
+            style: TextStyle(
+              fontSize: 14,
+              color: isActive
+                  ? (type == 'up' ? theme.primaryColor : Colors.red)
+                  : null,
+            )),
+      ),
+    );
+  }
+
   // ── Bubble Content ────────────────────────────────────────────────────────
   Widget _buildBubbleContent(
     DynamicTheme theme,
@@ -621,10 +1008,8 @@ class _DashboardScreenState extends State<DashboardScreen>
     if (isUser) {
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Text(
-          displayText,
-          style: theme.bodyStyle.copyWith(color: Colors.white, height: 1.5),
-        ),
+        child: Text(displayText,
+            style: theme.bodyStyle.copyWith(color: Colors.white, height: 1.5)),
       );
     }
 
@@ -647,14 +1032,14 @@ class _DashboardScreenState extends State<DashboardScreen>
           padding: const EdgeInsets.all(4),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: parsed.map((item) {
-              return _buildNeuroCard(
-                item['title']?.toString() ?? '',
-                item['content']?.toString() ?? '',
-                item['icon']?.toString() ?? '',
-                theme,
-              );
-            }).toList(),
+            children: parsed
+                .map((item) => _buildNeuroCard(
+                      item['title']?.toString() ?? '',
+                      item['content']?.toString() ?? '',
+                      item['icon']?.toString() ?? '',
+                      theme,
+                    ))
+                .toList(),
           ),
         );
       }
@@ -702,7 +1087,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           ),
           const SizedBox(width: 8),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
               color: theme.backgroundColor,
               borderRadius: const BorderRadius.only(
@@ -714,126 +1099,18 @@ class _DashboardScreenState extends State<DashboardScreen>
               border: Border.all(
                   color: theme.onSurfaceTextColor.withValues(alpha: 0.1)),
             ),
-            child: _TypingDots(color: theme.primaryColor),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ── Quick Action Chips ────────────────────────────────────────────────────
-  Widget _buildQuickActionChips(DynamicTheme theme) {
-    final chips = [
-      {
-        'label': '📝 Summarize',
-        'prompt': 'Please summarize my uploaded material'
-      },
-      {
-        'label': '🧪 Quiz me',
-        'prompt': 'Create a short quiz based on my material'
-      },
-      {
-        'label': '🔍 Explain simpler',
-        'prompt': 'Explain the main concepts in simpler terms'
-      },
-      {
-        'label': '💡 Key points',
-        'prompt': 'What are the key points I should remember?'
-      },
-    ];
-
-    return Container(
-      height: 44,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: chips.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          final chip = chips[index];
-          return GestureDetector(
-            onTap: () {
-              _chatController.text = chip['prompt']!;
-              _sendMessage(theme);
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              decoration: BoxDecoration(
-                color: theme.primaryColor.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                    color: theme.primaryColor.withValues(alpha: 0.6)),
-              ),
-              child: Text(
-                chip['label']!,
-                style: GoogleFonts.lexend(
-                  fontSize: 12,
-                  color: Colors.white,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _TypingDots(color: theme.primaryColor),
+                const SizedBox(width: 8),
+                Text("thinking...",
+                    style: theme.bodyStyle.copyWith(
+                      fontSize: 12,
+                      color: theme.onSurfaceTextColor.withValues(alpha: 0.5),
+                    )),
+              ],
             ),
-          );
-        },
-      ),
-    );
-  }
-
-  // ── Input Area ────────────────────────────────────────────────────────────
-  Widget _buildInputArea(DynamicTheme theme) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        border: Border(
-            top: BorderSide(
-                color: theme.onSurfaceTextColor.withValues(alpha: 0.06))),
-        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)),
-      ),
-      child: Column(
-        children: [
-          if (_isUploading)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: LinearProgressIndicator(
-                color: theme.xpAccentColor,
-                borderRadius: BorderRadius.circular(4),
-              ),
-            ),
-          Row(
-            children: [
-              IconButton(
-                onPressed: () => _uploadDocument(context),
-                icon: Icon(Icons.attach_file, color: theme.primaryColor),
-                tooltip: "Upload PDF",
-              ),
-              Expanded(
-                child: TextField(
-                  controller: _chatController,
-                  decoration: InputDecoration(
-                    hintText: "Ask anything...",
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(24),
-                      borderSide: BorderSide.none,
-                    ),
-                    filled: true,
-                    fillColor: theme.backgroundColor,
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 18, vertical: 10),
-                  ),
-                  onSubmitted: (_) => _sendMessage(theme),
-                  maxLines: null,
-                ),
-              ),
-              const SizedBox(width: 8),
-              FloatingActionButton.small(
-                onPressed: () => _sendMessage(theme),
-                backgroundColor: theme.primaryColor,
-                elevation: 0,
-                child: const Icon(Icons.send_rounded,
-                    color: Colors.white, size: 18),
-              ),
-            ],
           ),
         ],
       ),
@@ -926,12 +1203,10 @@ class _DashboardScreenState extends State<DashboardScreen>
               child: ElevatedButton(
                 onPressed: () {
                   setState(() => _reviewSubmitted = true);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text("⭐ ${"★" * _reviewStars} — Thank you!"),
-                      backgroundColor: theme.primaryColor,
-                    ),
-                  );
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text("⭐ ${"★" * _reviewStars} — Thank you!"),
+                    backgroundColor: theme.primaryColor,
+                  ));
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: theme.primaryColor,
@@ -997,10 +1272,10 @@ class _DashboardScreenState extends State<DashboardScreen>
   // ── Send Message ──────────────────────────────────────────────────────────
   void _sendMessage(DynamicTheme theme) async {
     if (_chatController.text.trim().isEmpty) return;
-    final text = _chatController.text;
-    await _firestoreService.saveChatMessage('user', text);
+    final text = _chatController.text.trim();
     _chatController.clear();
 
+    await _firestoreService.saveChatMessage('user', text);
     setState(() => _isAiTyping = true);
     _scrollToBottom();
 
@@ -1054,7 +1329,6 @@ class _DashboardScreenState extends State<DashboardScreen>
         allowedExtensions: ['pdf'],
         withData: true,
       );
-
       if (result == null) return;
 
       final pickedFile = result.files.single;
@@ -1083,8 +1357,8 @@ class _DashboardScreenState extends State<DashboardScreen>
       }
 
       if (!mounted) return;
-
       setState(() => _isAiTyping = true);
+
       final traits = Provider.of<DynamicTheme>(context, listen: false).traits;
       await _firestoreService.saveChatMessage(
           'ai', 'Reading $fileName and generating your personalised summary…');
@@ -1227,10 +1501,8 @@ class _ReadingRuler extends StatelessWidget {
       right: 0,
       child: GestureDetector(
         onVerticalDragUpdate: (details) {
-          final newY = (rulerY + details.delta.dy).clamp(
-            0.0,
-            MediaQuery.of(context).size.height - 40,
-          );
+          final newY = (rulerY + details.delta.dy)
+              .clamp(0.0, MediaQuery.of(context).size.height - 40);
           onDrag(newY);
         },
         child: Container(
@@ -1404,7 +1676,6 @@ class _ConfettiPainter extends CustomPainter {
       final y = size.height * progress * p.speed;
       final x = size.width * p.x;
       final opacity = (1.0 - progress).clamp(0.0, 1.0);
-
       final paint = Paint()
         ..color = p.color.withValues(alpha: opacity)
         ..style = PaintingStyle.fill;

@@ -1,33 +1,28 @@
-import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:provider/provider.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:firebase_auth/firebase_auth.dart' hide EmailAuthProvider;
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_ui_auth/firebase_ui_auth.dart' hide ProfileScreen;
+import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:provider/provider.dart';
 
-import 'firebase_options.dart';
-import 'core/theme/dynamic_theme.dart';
-import 'core/services/user_service.dart';
 import 'core/services/ai_service.dart';
 import 'core/services/firestore_service.dart';
-import 'core/widgets/error_boundary.dart';
-import 'core/widgets/adaptive_layout_shell.dart';
+import 'core/services/user_service.dart';
+import 'core/theme/dynamic_theme.dart';
 import 'core/utils/logger.dart';
-
-<<<<<<< HEAD
-// Screens
-=======
+import 'core/widgets/adaptive_layout_shell.dart';
+import 'core/widgets/error_boundary.dart';
 // Screens - Only importing existing files
 import 'features/admin/admin_dashboard_screen.dart';
->>>>>>> 9af47b62e82026958e70b302c3e9bc8325dc406b
+import 'features/analytics/analytics_screen.dart';
 import 'features/dashboard/dashboard_screen.dart';
+import 'features/faq/faq_screen.dart';
+import 'features/library/library_screen.dart';
+import 'features/profile/profile_screen.dart';
 import 'features/quiz/quiz_intro_screen.dart';
 import 'features/quiz/quiz_screen.dart';
-import 'features/library/library_screen.dart';
-import 'features/analytics/analytics_screen.dart';
 import 'features/settings/settings_screen.dart';
-import 'features/profile/profile_screen.dart';
-import 'features/faq/faq_screen.dart';
+import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -186,4 +181,3 @@ class LoginScreen extends StatelessWidget {
     );
   }
 }
-
