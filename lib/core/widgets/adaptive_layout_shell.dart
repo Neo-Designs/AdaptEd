@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../../core/theme/dynamic_theme.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:intl/intl.dart';
+import '../utils/logger.dart';
 
 class AdaptiveLayoutShell extends StatefulWidget {
   final Widget child;
@@ -29,7 +32,7 @@ class _AdaptiveLayoutShellState extends State<AdaptiveLayoutShell> {
             backgroundColor: theme.backgroundColor,
             body: Row(
               children: [
-                _buildSidebar(context, theme, currentRoute),
+                _buildSidebar(context, theme, currentRoute, user),
                 Expanded(
                   child: Column(
                     children: [
@@ -56,14 +59,14 @@ class _AdaptiveLayoutShellState extends State<AdaptiveLayoutShell> {
               IconButton(onPressed: () => theme.toggleFocusMode(), icon: Icon(theme.focusMode ? Icons.visibility_off : Icons.visibility)),
             ],
           ),
-          drawer: _buildDrawer(context, theme, currentRoute),
+          drawer: _buildDrawer(context, theme, currentRoute, user),
           body: widget.child,
         );
       },
     );
   }
 
-  Widget _buildSidebar(BuildContext context, DynamicTheme theme, String currentRoute) {
+  Widget _buildSidebar(BuildContext context, DynamicTheme theme, String currentRoute, User? user) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
       width: _isSidebarExpanded ? 250 : 70,
@@ -83,6 +86,7 @@ class _AdaptiveLayoutShellState extends State<AdaptiveLayoutShell> {
           ),
           const SizedBox(height: 40),
           _buildNavItem(context, theme, Icons.dashboard_outlined, "Dashboard", '/dashboard', currentRoute),
+          _buildRecentChatsTile(context, theme, user),
           _buildNavItem(context, theme, Icons.library_books_outlined, "Library", '/library', currentRoute),
           _buildNavItem(context, theme, Icons.analytics_outlined, "Analytics", '/analytics', currentRoute),
           _buildNavItem(context, theme, Icons.person_outline, "Profile", '/profile', currentRoute),
@@ -99,7 +103,7 @@ class _AdaptiveLayoutShellState extends State<AdaptiveLayoutShell> {
     );
   }
   
-  Widget _buildDrawer(BuildContext context, DynamicTheme theme, String currentRoute) {
+  Widget _buildDrawer(BuildContext context, DynamicTheme theme, String currentRoute, User? user) {
     return Drawer(
       backgroundColor: theme.backgroundColor,
       child: ListView(
@@ -120,12 +124,106 @@ class _AdaptiveLayoutShellState extends State<AdaptiveLayoutShell> {
             ),
           ),
           _buildNavItem(context, theme, Icons.dashboard_outlined, "Dashboard", '/dashboard', currentRoute, isDrawer: true),
+          _buildRecentChatsTile(context, theme, user, isDrawer: true),
           _buildNavItem(context, theme, Icons.library_books_outlined, "Library", '/library', currentRoute, isDrawer: true),
           _buildNavItem(context, theme, Icons.analytics_outlined, "Analytics", '/analytics', currentRoute, isDrawer: true),
           _buildNavItem(context, theme, Icons.person_outline, "Profile", '/profile', currentRoute, isDrawer: true),
           _buildNavItem(context, theme, Icons.help_outline, "FAQs", '/faqs', currentRoute, isDrawer: true),
           const Divider(),
           _buildNavItem(context, theme, Icons.settings_outlined, "Settings", '/settings', currentRoute, isDrawer: true),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRecentChatsTile(BuildContext context, DynamicTheme theme, User? user, {bool isDrawer = false}) {
+    final showLabel = _isSidebarExpanded || isDrawer;
+    
+    if (!showLabel) {
+      return ListTile(
+        leading: Icon(Icons.chat_bubble_outline, color: Colors.grey[600]),
+        onTap: () {
+          setState(() => _isSidebarExpanded = true);
+        },
+        contentPadding: const EdgeInsets.only(left: 24),
+      );
+    }
+
+    if (user == null) return const SizedBox.shrink();
+
+    return Theme(
+      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+      child: ExpansionTile(
+        leading: Icon(Icons.chat_bubble_outline, color: Colors.grey[600]),
+        title: Text(
+          "Recent Chats",
+          style: TextStyle(
+            fontFamily: theme.bodyStyle.fontFamily,
+            color: Colors.grey[800],
+            fontWeight: FontWeight.normal,
+          ),
+        ),
+        tilePadding: isDrawer ? const EdgeInsets.symmetric(horizontal: 16) : const EdgeInsets.symmetric(horizontal: 16),
+        childrenPadding: const EdgeInsets.only(left: 16),
+        children: [
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('sessions')
+                .where('userId', isEqualTo: user.uid)
+                .orderBy('lastActive', descending: true)
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                AppLogger.error("Recent Chats Stream Error", error: snapshot.error);
+                return Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Text("Error loading chats. Consult logs.", style: TextStyle(color: Colors.red[300], fontSize: 10)),
+                );
+              }
+              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                return Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Text("No recent chats", style: TextStyle(color: Colors.grey[500], fontSize: 12)),
+                );
+              }
+
+              return Column(
+                children: snapshot.data!.docs.map((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  final title = data['title'] ?? 'Chat Session';
+                  final timestamp = data['lastActive'] as Timestamp?;
+                  String subtitleStr = '';
+                  if (timestamp != null) {
+                    subtitleStr = DateFormat('MMMM dd, yyyy - hh:mm a').format(timestamp.toDate());
+                  }
+
+                  return ListTile(
+                    dense: true,
+                    contentPadding: const EdgeInsets.only(left: 40, right: 16),
+                    title: Text(
+                      title,
+                      style: TextStyle(fontSize: 13, color: Colors.grey[800], fontWeight: FontWeight.w500),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    subtitle: subtitleStr.isNotEmpty 
+                        ? Text(subtitleStr, style: TextStyle(fontSize: 10, color: Colors.grey[500]))
+                        : null,
+                    onTap: () {
+                      if (isDrawer) {
+                        Navigator.pop(context); // Close drawer
+                      }
+                      Navigator.pushReplacementNamed(
+                        context, 
+                        '/dashboard',
+                        arguments: {'sessionId': doc.id}
+                      );
+                    },
+                  );
+                }).toList(),
+              );
+            },
+          ),
         ],
       ),
     );
@@ -168,7 +266,7 @@ class _AdaptiveLayoutShellState extends State<AdaptiveLayoutShell> {
        padding: const EdgeInsets.symmetric(horizontal: 24),
        decoration: BoxDecoration(
           color: theme.backgroundColor,
-          border: Border(bottom: BorderSide(color: Colors.grey.withOpacity(0.1)))
+          border: Border(bottom: BorderSide(color: Colors.grey.withValues(alpha: 0.1)))
        ),
        child: Row(
          mainAxisAlignment: MainAxisAlignment.end,

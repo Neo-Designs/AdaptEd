@@ -72,7 +72,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
               borderRadius: BorderRadius.circular(24),
               boxShadow: [
                 BoxShadow(
-                  color: theme.primaryColor.withOpacity(0.3),
+                  color: theme.primaryColor.withValues(alpha: 0.3),
                   blurRadius: 20,
                   offset: const Offset(0, 10),
                 )
@@ -88,7 +88,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                 const SizedBox(height: 8),
                 Text(
                   "$xp XP Earned",
-                  style: theme.bodyStyle.copyWith(color: Colors.white.withOpacity(0.9), fontSize: 18),
+                  style: theme.bodyStyle.copyWith(color: Colors.white.withValues(alpha: 0.9), fontSize: 18),
                 ),
                 const SizedBox(height: 24),
                 LinearProgressIndicator(

@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../core/services/ai_service.dart';
+import '../../core/utils/logger.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -60,50 +61,79 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text("Analytics Dashboard", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+        const Text("Analytics Dashboard", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
         const SizedBox(height: 16),
         Row(
           children: [
             _buildCountCard("Total Users", FirebaseFirestore.instance.collection('users').snapshots().map((s) => s.docs.length.toString())),
             const SizedBox(width: 16),
-            _buildCountCard("Reviews", FirebaseFirestore.instance.collection('reviews').snapshots().map((s) => s.docs.length.toString())),
+            _buildCountCard("User Reviews", FirebaseFirestore.instance.collection('reviews').snapshots().map((s) => s.docs.length.toString())),
           ],
         ),
         const SizedBox(height: 24),
-        Container(
-          height: 200,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey[200]!)),
-          child: LineChart(
-            LineChartData(
-              gridData: const FlGridData(show: false),
-              titlesData: const FlTitlesData(
-                leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 40)),
-                bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 22)),
-                topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-              ),
-              borderData: FlBorderData(show: true, border: Border.all(color: Colors.grey[300]!)),
-              lineBarsData: [
-                LineChartBarData(
-                  spots: [
-                    const FlSpot(0, 10), const FlSpot(1, 25), const FlSpot(2, 40),
-                    const FlSpot(3, 35), const FlSpot(4, 60), const FlSpot(5, 80), const FlSpot(6, 95),
-                  ],
-                  isCurved: true,
-                  color: Colors.blue,
-                  barWidth: 3,
-                  dotData: const FlDotData(show: false),
-                  belowBarData: BarAreaData(show: true, color: Colors.blue.withOpacity(0.1)),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 8),
-        const Center(child: Text("User Growth (Last 7 Days - Mock Data)")),
+        _buildReviewList(),
       ],
     );
+  }
+
+  Widget _buildReviewList() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text("Latest Reviews", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 12),
+        StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance.collection('reviews').orderBy('timestamp', descending: true).limit(5).snapshots(),
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) return const CircularProgressIndicator();
+            final docs = snapshot.data!.docs;
+            if (docs.isEmpty) return const Text("No reviews found.");
+
+            // Calculate average
+            return FutureBuilder<double>(
+              future: _calculateAverageRating(),
+              builder: (context, avgSnapshot) {
+                return Column(
+                  children: [
+                    if (avgSnapshot.hasData)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 16.0),
+                        child: Text("Average Rating: ${avgSnapshot.data!.toStringAsFixed(1)} / 5.0", style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.amber)),
+                      ),
+                    ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: docs.length,
+                      itemBuilder: (context, index) {
+                        final data = docs[index].data() as Map<String, dynamic>;
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          child: ListTile(
+                            leading: const CircleAvatar(child: Icon(Icons.person)),
+                            title: Text(data['text'] ?? '', style: const TextStyle(fontSize: 14)),
+                            subtitle: Text("Rating: ${data['rating'] ?? 'N/A'}", style: const TextStyle(fontSize: 12)),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                );
+              }
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Future<double> _calculateAverageRating() async {
+    final snap = await FirebaseFirestore.instance.collection('reviews').get();
+    if (snap.docs.isEmpty) return 0.0;
+    double total = 0;
+    for (var doc in snap.docs) {
+      total += (doc.data()['rating'] ?? 0).toDouble();
+    }
+    return total / snap.docs.length;
   }
 
   Widget _buildCountCard(String title, Stream<String> countStream) {
@@ -131,18 +161,32 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text("Prompt Engineering", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        const Text("AI Prompt Management", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
         const SizedBox(height: 12),
         _buildPromptField("Summary System Prompt", _summaryPromptController),
         const SizedBox(height: 16),
         _buildPromptField("Chatbot Persona Prompt", _chatPromptController),
         const SizedBox(height: 16),
-        ElevatedButton(
-          onPressed: () {
-            // In a real app, save these to Firestore or a config service
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Prompts updated successfully!")));
+        ElevatedButton.icon(
+          icon: const Icon(Icons.save),
+          onPressed: () async {
+            try {
+              await FirebaseFirestore.instance.collection('config').doc('ai_prompts').set({
+                'summaryPrompt': _summaryPromptController.text,
+                'chatbotPersonaPrompt': _chatPromptController.text,
+                'lastUpdated': FieldValue.serverTimestamp(),
+              });
+              AIService.updateSummaryPrompt(_summaryPromptController.text);
+              AIService.updateChatbotPrompt(_chatPromptController.text);
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Prompts updated and synced!")));
+              }
+            } catch (e) {
+               AppLogger.error("Failed to save prompts", error: e);
+            }
           },
-          child: const Text("Save Prompt Config"),
+          label: const Text("Deploy Prompt Changes"),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.blueGrey, foregroundColor: Colors.white),
         ),
       ],
     );
@@ -175,7 +219,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.grey[300]!),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10)],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

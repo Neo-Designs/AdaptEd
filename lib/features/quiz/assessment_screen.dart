@@ -18,7 +18,7 @@ class _AssessmentScreenState extends State<AssessmentScreen> {
   bool _isLoading = true;
   int _score = 0;
   bool _submitted = false;
-  Map<int, int> _answers = {};
+  final Map<int, int> _answers = {};
 
   @override
   void initState() {
@@ -135,11 +135,10 @@ class _AssessmentScreenState extends State<AssessmentScreen> {
                             // Award XP: 10 per correct answer
                             await _gamificationService.awardXP(correctCount * GamificationService.xpPerCorrectAnswer);
 
-                            if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text("You scored $_score/${_questions.length}! You earned ${_score * 10} XP!")),
-                              );
-                            }
+                            if (!context.mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text("You scored $_score/${_questions.length}! You earned ${_score * 10} XP!")),
+                            );
                           },
                     child: Text(_submitted ? "Return to Dashboard" : "Submit Answers"),
                   ),

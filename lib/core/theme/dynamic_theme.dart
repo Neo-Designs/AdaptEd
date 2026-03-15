@@ -90,11 +90,11 @@ class DynamicTheme extends ChangeNotifier {
 
   // --- Decoration Tokens ---
   BoxDecoration get glassDecoration => BoxDecoration(
-    color: Colors.white.withOpacity(_focusMode ? 1.0 : 0.7),
+    color: Colors.white.withValues(alpha: _focusMode ? 1.0 : 0.7),
     borderRadius: BorderRadius.circular(16),
-    border: Border.all(color: primaryColor.withOpacity(0.1)),
+    border: Border.all(color: primaryColor.withValues(alpha: 0.1)),
     boxShadow: _focusMode ? [] : [
-      BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))
+      BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4))
     ],
   );
 
@@ -134,7 +134,6 @@ class DynamicTheme extends ChangeNotifier {
         primary: primaryColor,
         secondary: secondaryColor,
         surface: cardColor,
-        background: backgroundColor,
       ),
     );
   }

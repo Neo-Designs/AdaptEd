@@ -46,7 +46,11 @@ void main() async {
       providers: [
         ChangeNotifierProvider(create: (_) => DynamicTheme()),
         ChangeNotifierProvider(create: (_) => UserService()),
-        Provider(create: (_) => AIService()),
+        Provider(create: (_) {
+           final service = AIService();
+           service.initializePrompts(); // Async initialization
+           return service;
+        }),
         Provider(create: (_) => FirestoreService()),
       ],
       child: const ErrorBoundary(
@@ -74,7 +78,7 @@ class AdaptEdApp extends StatelessWidget {
           onGenerateRoute: (settings) {
             return MaterialPageRoute(
               settings: settings, 
-              builder: (context) => AuthWrapper(route: settings.name),
+              builder: (context) => AuthWrapper(route: settings.name, arguments: settings.arguments),
             );
           },
         );
@@ -85,7 +89,8 @@ class AdaptEdApp extends StatelessWidget {
 
 class AuthWrapper extends StatelessWidget {
   final String? route;
-  const AuthWrapper({super.key, this.route});
+  final Object? arguments;
+  const AuthWrapper({super.key, this.route, this.arguments});
 
   @override
   Widget build(BuildContext context) {
@@ -137,17 +142,17 @@ class AuthWrapper extends StatelessWidget {
 
         // 6. Navigation
         return AdaptiveLayoutShell(
-          child: _getPageForRoute(route),
+          child: _getPageForRoute(route, arguments),
         );
       },
     );
   }
 
-  Widget _getPageForRoute(String? route) {
+  Widget _getPageForRoute(String? route, Object? arguments) {
     switch (route) {
       case '/dashboard':
       case '/': 
-        return const DashboardScreen();
+        return DashboardScreen(initialArguments: arguments as Map<String, dynamic>?);
       case '/library':
         return const LibraryScreen();
       case '/analytics':

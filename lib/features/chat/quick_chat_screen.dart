@@ -96,7 +96,7 @@ class _QuickChatScreenState extends State<QuickChatScreen> {
       decoration: BoxDecoration(
         color: theme.scaffoldBackgroundColor,
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -2))
+          BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, -2))
         ],
       ),
       child: SafeArea(
@@ -111,11 +111,11 @@ class _QuickChatScreenState extends State<QuickChatScreen> {
                   hintStyle: theme.bodyStyle.copyWith(color: Colors.grey),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(24),
-                    borderSide: BorderSide(color: theme.primaryColor.withOpacity(0.2)),
+                    borderSide: BorderSide(color: theme.primaryColor.withValues(alpha: 0.2)),
                   ),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                   filled: true,
-                  fillColor: Colors.white.withOpacity(0.8),
+                  fillColor: Colors.white.withValues(alpha: 0.8),
                 ),
                 onSubmitted: (_) => _sendMessage(theme.traits.learningProfileName, aiService),
               ),
@@ -172,12 +172,12 @@ class ChatBubble extends StatelessWidget {
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.05),
+                color: Colors.black.withValues(alpha: 0.05),
                 blurRadius: 5,
                 offset: const Offset(0, 2),
               )
             ],
-            border: !isUser ? Border.all(color: theme.primaryColor.withOpacity(0.1)) : null,
+            border: !isUser ? Border.all(color: theme.primaryColor.withValues(alpha: 0.1)) : null,
           ),
           child: Text(
             msg.text,

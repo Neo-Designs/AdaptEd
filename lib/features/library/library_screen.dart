@@ -5,6 +5,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'dart:convert';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/theme/dynamic_theme.dart';
 import '../../core/services/firestore_service.dart';
@@ -48,7 +50,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
       if (bytes == null) throw Exception('Could not read file bytes.');
 
-      if (!mounted) return;
+      if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Processing $fileName — generating summary…")));
 
@@ -68,8 +70,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
           }),
         ]);
         
-        fileUrl = results[0] as String;
-        extractedText = results[1] as String;
+        fileUrl = results[0];
+        extractedText = results[1];
       } catch (e) {
         extractedText = ''; // AI guard handles empty/short text with a user-facing message
       }
@@ -94,13 +96,14 @@ class _LibraryScreenState extends State<LibraryScreen> {
         userTraits: traits,
       );
 
-      if (!mounted) return;
+      if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("✓ $fileName added to your library!")));
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Upload failed: $e")));
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Upload failed: $e")));
+      }
     } finally {
       if (mounted) setState(() => _isUploading = false);
     }
@@ -147,35 +150,65 @@ class _LibraryScreenState extends State<LibraryScreen> {
                    return ListView.builder(
                      itemCount: docs.length,
                      itemBuilder: (context, index) {
-                       final data = docs[index].data() as Map<String, dynamic>;
-                       return Card(
-                         margin: const EdgeInsets.only(bottom: 12),
-                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                         child: ExpansionTile(
-                           leading: Icon(Icons.picture_as_pdf, color: theme.primaryColor),
-                           title: Text(data['title'] ?? 'Untitled', style: theme.bodyStyle.copyWith(fontWeight: FontWeight.bold)),
-                           subtitle: Text("Generated for: ${data['adaptationMetadata']?['generatedFor'] ?? 'You'}", style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                           children: [
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-                              // MarkdownBody renders bold, bullets, headings from AI output
-                              child: MarkdownBody(
-                                data: data['summary'] ?? 'No summary available.',
-                                styleSheet: MarkdownStyleSheet(
-                                  p: theme.bodyStyle,
-                                  h2: theme.titleStyle.copyWith(fontSize: 16),
-                                  listBullet: theme.bodyStyle,
-                                ),
-                              ),
-                            ),
-                            TextButton.icon(
-                              onPressed: () {},
-                              icon: const Icon(Icons.quiz_outlined),
-                              label: const Text("Take Quiz on this Material"),
-                            ),
-                          ],
-                         ),
-                       );
+                        final data = docs[index].data() as Map<String, dynamic>;
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          elevation: 2,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: Column(
+                               crossAxisAlignment: CrossAxisAlignment.start,
+                               children: [
+                                  Row(
+                                     children: [
+                                        Icon(Icons.picture_as_pdf, color: theme.primaryColor, size: 28),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(data['title'] ?? 'Untitled', style: theme.titleStyle.copyWith(fontSize: 16)),
+                                              const SizedBox(height: 4),
+                                              Text("Added: ${_formatDate(data['createdAt'])}", style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+                                            ],
+                                          )
+                                        ),
+                                     ]
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Row(
+                                     mainAxisAlignment: MainAxisAlignment.end,
+                                     children: [
+                                        TextButton.icon(
+                                           onPressed: () {
+                                              Navigator.pushReplacementNamed(
+                                                 context, 
+                                                 '/dashboard',
+                                                 arguments: {
+                                                    'reSummarizeText': data['fullText'],
+                                                    'fileName': data['title'] ?? 'Document'
+                                                 }
+                                              );
+                                           },
+                                           icon: const Icon(Icons.refresh),
+                                           label: const Text("Re-summarize"),
+                                           style: TextButton.styleFrom(foregroundColor: theme.primaryColor),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        TextButton.icon(
+                                           onPressed: () {
+                                              _showSummaryModal(context, data['title'] ?? 'Summary', data['summary'] ?? '', theme);
+                                           },
+                                           icon: const Icon(Icons.auto_awesome),
+                                           label: const Text("View Summary")
+                                        )
+                                     ]
+                                  )
+                               ]
+                            )
+                          )
+                        );
                      },
                    );
                  },
@@ -196,9 +229,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
         decoration: BoxDecoration(
           color: theme.cardColor,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: theme.primaryColor.withOpacity(0.2)),
+          border: Border.all(color: theme.primaryColor.withValues(alpha: 0.2)),
           boxShadow: [
-             BoxShadow(color: theme.primaryColor.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))
+             BoxShadow(color: theme.primaryColor.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4))
           ]
         ),
         child: Row(
@@ -206,7 +239,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: theme.primaryColor.withOpacity(0.1),
+                color: theme.primaryColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(Icons.upload_file, color: theme.primaryColor, size: 32),
@@ -218,6 +251,154 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 Text("Upload Document", style: theme.titleStyle.copyWith(fontSize: 18)),
                 Text("Tap to upload PDF for summarization", style: theme.bodyStyle.copyWith(fontSize: 14, color: Colors.grey[600])),
               ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatDate(dynamic timestamp) {
+     if (timestamp == null) return "Unknown date";
+     if (timestamp is Timestamp) {
+        final date = timestamp.toDate();
+        return "${date.day}/${date.month}/${date.year}";
+     }
+     return "Unknown date";
+  }
+
+  void _showSummaryModal(BuildContext context, String title, String summary, DynamicTheme theme) {
+      showModalBottomSheet(
+         context: context,
+         isScrollControlled: true,
+         backgroundColor: Colors.transparent,
+         builder: (ctx) {
+            return Container(
+               height: MediaQuery.of(context).size.height * 0.85,
+               decoration: BoxDecoration(
+                  color: theme.backgroundColor,
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(24))
+               ),
+               padding: const EdgeInsets.all(24),
+               child: Column(
+                  children: [
+                     Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                           Expanded(child: Text(title, style: theme.titleStyle.copyWith(fontSize: 20), maxLines: 2, overflow: TextOverflow.ellipsis)),
+                           IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx))
+                        ]
+                     ),
+                     const Divider(),
+                     const SizedBox(height: 8),
+                     Expanded(
+                        child: SingleChildScrollView(
+                           child: _parseAndRenderSummary(summary, theme)
+                        )
+                     )
+                  ]
+               )
+            );
+         }
+      );
+  }
+
+  Widget _parseAndRenderSummary(String summary, DynamicTheme theme) {
+      try {
+        String rawText = summary.trim();
+        if (rawText.startsWith('```json')) rawText = rawText.substring(7);
+        if (rawText.startsWith('```')) rawText = rawText.substring(3);
+        if (rawText.endsWith('```')) rawText = rawText.substring(0, rawText.length - 3);
+        rawText = rawText.trim();
+        
+        final parsed = jsonDecode(rawText);
+        if (parsed is List) {
+           return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: parsed.map((item) {
+                  return _buildNeuroCard(
+                    item['title']?.toString() ?? '', 
+                    item['content']?.toString() ?? '', 
+                    item['icon']?.toString() ?? '', 
+                    theme
+                  );
+              }).toList()
+           );
+        }
+      } catch (_) {}
+      
+      return MarkdownBody(
+          data: summary,
+          styleSheet: MarkdownStyleSheet(
+            p: theme.bodyStyle,
+            h2: theme.titleStyle.copyWith(fontSize: 16),
+            listBullet: theme.bodyStyle,
+          ),
+      );
+  }
+
+  Widget _buildNeuroCard(String title, String content, String icon, DynamicTheme theme) {
+    Color bgColor = const Color(0xFFF8FAFC);
+    if (theme.traits.isADHD) {
+      bgColor = const Color(0xFFFDF2F2); 
+    } else if (theme.traits.isAutistic) {
+      bgColor = const Color(0xFFF0F4FF); 
+    }
+
+    TextStyle baseTextStyle;
+    if (theme.traits.isDyslexic) {
+      baseTextStyle = const TextStyle(
+        fontFamily: 'OpenDyslexic',
+        height: 1.6,
+        color: Colors.black87,
+      );
+    } else {
+      baseTextStyle = GoogleFonts.lexend(
+        textStyle: const TextStyle(
+          height: 1.6,
+          color: Colors.black87,
+        )
+      );
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16.0),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(16.0),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (title.isNotEmpty) ...[
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (icon.isNotEmpty) ...[
+                     Text(icon, style: const TextStyle(fontSize: 24)),
+                     const SizedBox(width: 8),
+                  ],
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: baseTextStyle.copyWith(fontWeight: FontWeight.bold, fontSize: 18),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+            ],
+            MarkdownBody(
+              data: content,
+              styleSheet: MarkdownStyleSheet(
+                p: baseTextStyle,
+                strong: baseTextStyle.copyWith(fontWeight: FontWeight.bold),
+                listBullet: baseTextStyle,
+                blockSpacing: 12.0,
+              ),
             ),
           ],
         ),

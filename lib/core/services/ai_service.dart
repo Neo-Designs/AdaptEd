@@ -2,9 +2,27 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../utils/logger.dart';
 
 class AIService {
+  // --- SYNC PROMPTS WITH FIRESTORE ---
+  Future<void> initializePrompts() async {
+    try {
+      final doc = await FirebaseFirestore.instance.collection('config').doc('ai_prompts').get();
+      if (doc.exists) {
+        final data = doc.data();
+        if (data != null) {
+          if (data['summaryPrompt'] != null) summaryPrompt = data['summaryPrompt'];
+          if (data['chatbotPersonaPrompt'] != null) chatbotPersonaPrompt = data['chatbotPersonaPrompt'];
+          AppLogger.info('Prompts initialized from Firestore', tag: 'AIService');
+        }
+      }
+    } catch (e) {
+      AppLogger.error('Failed to initialize prompts from Firestore', tag: 'AIService', error: e);
+    }
+  }
+
   // --- API KEYS ---
   static String get _groqApiKey => dotenv.env['GROQ_API_KEY'] ?? "";
   static String get _geminiApiKey => dotenv.env['GEMINI_API_KEY'] ?? "";
@@ -53,6 +71,9 @@ class AIService {
     required bool isADHD,
     required bool isAutistic,
     required bool isDyslexic,
+    bool isDyspraxic = false,
+    bool useGemini = true,
+    void Function(String)? onWait,
   }) async {
     // ── Error guard: catch scanned / image-only PDFs early ─────────────────
     if (content.trim().length < 10) {
@@ -62,11 +83,11 @@ class AIService {
     }
 
     // ── Model Router: Gemini vs Groq ───────────────────────────────────────
-    // If the text is extremely large (> 15,000 chars / ~3,000 tokens), route it
+    // If the text is extremely large (>= 20,000 chars), route it
     // to Gemini which handles massive contexts. Otherwise, use Groq for speed.
-    final bool useGemini = content.length > 15000;
+    final bool routeToGemini = content.length >= 20000;
     
-    if (useGemini) {
+    if (routeToGemini) {
       AppLogger.info('Routing to Gemini. Content length: ${content.length}', tag: 'AIService');
     } else {
       AppLogger.info('Routing to Groq. Content length: ${content.length}', tag: 'AIService');
@@ -104,6 +125,15 @@ class AIService {
           '- Prefer words with 1–2 syllables.\n'
           '- One idea per bullet. No nested bullets. No tables.\n'
           '- Add a blank line between every paragraph and bullet group.';
+    } else if (isDyspraxic) {
+      traitInstructions =
+          'Format the output for a learner with Dyspraxia using a Kinesthetic/Action-Oriented structure:\n'
+          '- Use "Step-by-Step" instructions for all concepts.\n'
+          '- Each step must start with a CLEAR ACTION VERB (e.g., "Identify", "Compare", "Write").\n'
+          '- Use bolding for the ACTION VERBS.\n'
+          '- Break tasks into the smallest possible sequences.\n'
+          '- If explaining a concept, explain it through a "Mental Simulation" or "Hands-on Analogy".\n'
+          '- Keep the layout extremely linear (One column, no sidebars/tables).';
     } else {
       traitInstructions =
           'Format the output as a clear Markdown summary:\n'
@@ -121,10 +151,9 @@ class AIService {
         '2. Do NOT apologise for not being able to see or access files — the text is already given to you.\n'
         '3. Do NOT invent or assume information not present in the text.\n'
         '4. Do NOT refer to "the document" or "the PDF" — just present the information directly.\n'
-        '5. Chunk the summary into "Bite-Sized" sections.\n'
+        '5. Chunk the summary into "Bite-Sized" sections. You MUST break the PDF content into 4-6 distinct, bite-sized objects.\n'
         '6. Use Progressive Disclosure: Utilize bulleted lists rather than dense paragraphs to prevent cognitive overload.\n'
-        '7. YOU MUST RETURN ONLY A VALID JSON ARRAY OF OBJECTS. Do not include markdown codeblocks or other text.\n'
-        '   Format each object exactly as: [{"title": "section title", "content": "markdown string", "icon": "emoji icon"}]\n\n'
+        '7. You MUST return ONLY a raw JSON array of objects. Do not include markdown code blocks. Each object must follow this schema: {"title": "Section Title", "content": "The actual text with **keywords** in bold", "icon": "emoji"}\n\n'
         '$traitInstructions';
 
     // ── 2. Wrap the content in clear delimiters ─────────────────────────────
@@ -135,8 +164,8 @@ class AIService {
         'Generate the summary now using ONLY the source material above.';
 
     try {
-      if (useGemini) {
-        return await _callGeminiAPI(userPrompt, systemPrompt: systemPrompt);
+      if (routeToGemini) {
+        return await _callGeminiAPI(userPrompt, systemPrompt: systemPrompt, onWait: onWait);
       } else {
         return await _callGroqAPI(userPrompt, systemPrompt: systemPrompt);
       }
@@ -147,10 +176,10 @@ class AIService {
   }
 
 
-  Future<String> chatWithAI(String text, String profileName) async {
+  Future<String> chatWithAI(String text, String profileName, {void Function(String)? onWait}) async {
     final systemPrompt = "$chatbotPersonaPrompt $profileName";
     try {
-      return await _callGroqAPI(text, systemPrompt: systemPrompt);
+      return await _callGeminiAPI(text, systemPrompt: systemPrompt, onWait: onWait);
     } catch (e, stack) {
       AppLogger.error('Chat generation failed', tag: 'AIService', error: e, stackTrace: stack);
       return "I'm having trouble connecting to my brain right now. Please try again.";
@@ -285,27 +314,67 @@ class AIService {
     }
   }
 
-  Future<String> _callGeminiAPI(String userContent, {String? systemPrompt}) async {
+  // --- 4. RETRY LOGIC & PRIVATE API CALLERS ---
+  
+  Future<T> _retryWithBackoff<T>(Future<T> Function() action, {void Function(String)? onWait, void Function()? onRetry}) async {
+    int retries = 0;
+    const int maxRetries = 3;
+    
+    while (true) {
+      try {
+        return await action();
+      } catch (e) {
+        final errorStr = e.toString().toLowerCase();
+        // Check for Quota or Rate Limit specifics
+        if (errorStr.contains('quota') || errorStr.contains('429') || errorStr.contains('rate limit')) {
+           retries++;
+           if (retries > maxRetries) {
+             AppLogger.error('Max retries exceeded for Quota issue', tag: 'AIService', error: e);
+             rethrow;
+           }
+           
+           AppLogger.warning('Quota Exceeded. Retrying $retries/$maxRetries in 5 seconds...', tag: 'AIService');
+           if (onWait != null) {
+              onWait("AdaptEd is thinking deeply... back in a few seconds!");
+           }
+           if (onRetry != null) {
+              onRetry();
+           }
+           
+           await Future.delayed(const Duration(seconds: 5));
+        } else {
+           rethrow; // Re-throw non-quota errors immediately
+        }
+      }
+    }
+  }
+
+  Future<String> _callGeminiAPI(String userContent, {String? systemPrompt, void Function(String)? onWait}) async {
     if (_geminiApiKey.isEmpty) {
       AppLogger.error('API Key Missing', tag: 'AIService', error: 'GEMINI_API_KEY not found in .env');
       return "Config Error: Gemini API Key missing. Please check .env";
     }
 
     try {
-      final model = GenerativeModel(
-        model: 'gemini-1.5-flash-latest',
-        apiKey: _geminiApiKey,
-        systemInstruction: systemPrompt != null ? Content.system(systemPrompt) : null,
-      );
+      String currentModel = 'gemini-2.0-flash';
 
-      final response = await model.generateContent([Content.text(userContent)]);
-      
-      if (response.text != null && response.text!.isNotEmpty) {
-        return response.text!;
-      } else {
-        AppLogger.error('API Error', tag: 'AIService', error: 'Gemini returned empty response');
-        return "API Error: Gemini returned empty response";
-      }
+      return await _retryWithBackoff(() async {
+         final model = GenerativeModel(
+           model: currentModel,
+           apiKey: _geminiApiKey,
+           systemInstruction: systemPrompt != null ? Content.system(systemPrompt) : null,
+         );
+         
+         final response = await model.generateContent([Content.text(userContent)]);
+         
+         if (response.text != null && response.text!.isNotEmpty) {
+           return response.text!;
+         } else {
+           throw Exception('Gemini returned empty response');
+         }
+      }, onWait: onWait, onRetry: () {
+         currentModel = 'gemini-1.5-pro'; // Fallback to avoid v1beta errors on flash
+      });
     } catch (e, stack) {
       AppLogger.error('Gemini Network Error', tag: 'AIService', error: e, stackTrace: stack);
       return "Network Error: $e";

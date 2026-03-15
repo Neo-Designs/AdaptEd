@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'gamification_service.dart';
+import '../utils/logger.dart';
 
 import 'ai_service.dart'; // Import AIService
 import '../../features/screening/scoring_engine.dart'; // Import UserTraits
@@ -18,7 +19,7 @@ class FirestoreService {
   CollectionReference get _users => _firestore.collection('users');
   CollectionReference get _learningMaterials => _firestore.collection('learning_materials');
   CollectionReference get _quizzes => _firestore.collection('quizzes');
-  CollectionReference get _chats => _firestore.collection('chats');
+  CollectionReference get _sessions => _firestore.collection('sessions');
   CollectionReference get _activityLogs => _firestore.collection('activity_logs');
   
   // Specific Demo Doc ID requested by User
@@ -43,6 +44,7 @@ class FirestoreService {
     required String fullText,
     required String fileUrl,
     required UserTraits userTraits, 
+    String? sessionId,
   }) async {
     if (currentUser == null) throw Exception("User not logged in");
 
@@ -56,6 +58,7 @@ class FirestoreService {
       'fullText': fullText, 
       'fileUrl': fileUrl,
       'createdAt': FieldValue.serverTimestamp(),
+      'sessionId': sessionId,
       'adaptationMetadata': {
          'generatedFor': userTraits.learningProfileName,
          'isDyslexicFriendly': userTraits.isDyslexic,
@@ -155,24 +158,54 @@ class FirestoreService {
     };
   }
   
-  // --- 3. Chat Persistence ---
-  Stream<QuerySnapshot> getChatMessages() {
+  // --- 3. Chat Session Persistence ---
+  
+  Future<String> createChatSession({String title = "New Chat"}) async {
+    if (currentUser == null) throw Exception("User not logged in");
+    final docRef = _sessions.doc();
+    await docRef.set({
+      'sessionId': docRef.id,
+      'userId': currentUser!.uid,
+      'title': title,
+      'lastActive': FieldValue.serverTimestamp(),
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+    return docRef.id;
+  }
+
+  Stream<QuerySnapshot> getChatSessions() {
     if (currentUser == null) return const Stream.empty();
+    return _sessions
+        .where('userId', isEqualTo: currentUser!.uid)
+        .orderBy('lastActive', descending: true)
+        .snapshots();
+  }
+
+  Stream<QuerySnapshot> getChatMessages(String sessionId) {
+    if (currentUser == null || sessionId.isEmpty) return const Stream.empty();
     
-    return _chats
-        .doc(currentUser!.uid)
+    return _sessions
+        .doc(sessionId)
         .collection('messages')
         .orderBy('timestamp', descending: false)
         .snapshots();
   }
 
-  Future<void> saveChatMessage(String role, String text) async {
-    if (currentUser == null) return;
+  Future<void> saveChatMessage(String sessionId, String role, String text) async {
+    if (currentUser == null || sessionId.isEmpty) return;
     
-    await _chats.doc(currentUser!.uid).collection('messages').add({
+    final timestamp = FieldValue.serverTimestamp();
+    
+    // Add message
+    await _sessions.doc(sessionId).collection('messages').add({
       'role': role,
       'text': text,
-      'timestamp': FieldValue.serverTimestamp(),
+      'timestamp': timestamp,
+    });
+    
+    // Update session's lastActive
+    await _sessions.doc(sessionId).update({
+      'lastActive': timestamp,
     });
   }
 
@@ -248,7 +281,7 @@ class FirestoreService {
         }
       } catch (e) {
         // Fallback or log if demo user access restricted, usually shouldn't block main flow
-        print("Demo sync failed: $e");
+        AppLogger.error("Demo sync failed", error: e);
       }
   }
 }

@@ -133,7 +133,7 @@ class ProfileScreen extends StatelessWidget {
                            width: 80,
                            margin: const EdgeInsets.only(right: 12),
                            decoration: BoxDecoration(
-                             color: theme.accentColor.withOpacity(0.1),
+                             color: theme.accentColor.withValues(alpha: 0.1),
                              borderRadius: BorderRadius.circular(12),
                              border: Border.all(color: theme.accentColor),
                            ),

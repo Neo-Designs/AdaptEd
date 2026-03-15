@@ -79,7 +79,7 @@ class SettingsScreen extends StatelessWidget {
       title: Text(title, style: theme.bodyStyle.copyWith(fontWeight: FontWeight.w600)),
       subtitle: Text(subtitle, style: theme.bodyStyle.copyWith(fontSize: 12, color: Colors.grey)),
       value: value,
-      activeColor: theme.primaryColor,
+      activeThumbColor: theme.primaryColor,
       onChanged: onChanged,
     );
   }
