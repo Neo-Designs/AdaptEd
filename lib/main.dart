@@ -15,6 +15,7 @@ import 'core/widgets/adaptive_layout_shell.dart';
 import 'core/utils/logger.dart';
 
 // Screens - Only importing existing files
+import 'features/admin/admin_dashboard_screen.dart';
 import 'features/dashboard/dashboard_screen.dart';
 import 'features/quiz/quiz_intro_screen.dart';
 import 'features/quiz/quiz_screen.dart';
@@ -190,14 +191,3 @@ class LoginScreen extends StatelessWidget {
   }
 }
 
-class AdminDashboardScreen extends StatelessWidget {
-  const AdminDashboardScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("Admin Dashboard")),
-      body: const Center(child: Text("Admin Features Coming Soon")),
-    );
-  }
-}
