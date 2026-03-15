@@ -42,13 +42,12 @@ class _QuickChatScreenState extends State<QuickChatScreen> {
       _messages.add(ChatMessage(role: 'user', text: text));
       _controller.clear();
       _isStreaming = true;
-      // Add a placeholder for the AI response
       _messages.add(ChatMessage(role: 'ai', text: '', isStreaming: true));
     });
     _scrollToBottom();
 
     try {
-      String fullResponse = "";
+      String fullResponse = '';
       await for (final chunk in aiService.chatWithAIStream(text, style)) {
         fullResponse += chunk;
         setState(() {
@@ -106,7 +105,7 @@ class _QuickChatScreenState extends State<QuickChatScreen> {
           BoxShadow(
               color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 10,
-              offset: const Offset(0, -2))
+              offset: const Offset(0, -2)),
         ],
       ),
       child: SafeArea(
@@ -117,7 +116,7 @@ class _QuickChatScreenState extends State<QuickChatScreen> {
                 controller: _controller,
                 style: theme.bodyStyle,
                 decoration: InputDecoration(
-                  hintText: "Ask anything...",
+                  hintText: 'Ask anything...',
                   hintStyle: theme.bodyStyle.copyWith(color: Colors.grey),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(24),
@@ -196,7 +195,7 @@ class ChatBubble extends StatelessWidget {
                 color: Colors.black.withValues(alpha: 0.05),
                 blurRadius: 5,
                 offset: const Offset(0, 2),
-              )
+              ),
             ],
             border: !isUser
                 ? Border.all(color: theme.primaryColor.withValues(alpha: 0.1))

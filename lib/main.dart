@@ -12,7 +12,6 @@ import 'core/theme/dynamic_theme.dart';
 import 'core/utils/logger.dart';
 import 'core/widgets/adaptive_layout_shell.dart';
 import 'core/widgets/error_boundary.dart';
-// Screens - Only importing existing files
 import 'features/admin/admin_dashboard_screen.dart';
 import 'features/analytics/analytics_screen.dart';
 import 'features/dashboard/dashboard_screen.dart';
@@ -29,7 +28,7 @@ void main() async {
   setupGlobalErrorHandling();
 
   try {
-    await dotenv.load(fileName: ".env");
+    await dotenv.load(fileName: '.env');
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
@@ -41,10 +40,13 @@ void main() async {
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(
-            create: (_) => DynamicTheme()), // ← already correct ✅
+        ChangeNotifierProvider(create: (_) => DynamicTheme()),
         ChangeNotifierProvider(create: (_) => UserService()),
-        Provider(create: (_) => AIService()),
+        Provider(create: (_) {
+          final service = AIService();
+          service.initializePrompts();
+          return service;
+        }),
         Provider(create: (_) => FirestoreService()),
       ],
       child: const ErrorBoundary(
@@ -59,19 +61,21 @@ class AdaptEdApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // context.watch() triggers a full rebuild when traits change
-    // This is the only change from your original — watch instead of Consumer
+    // context.watch() triggers a full rebuild when theme changes
     final theme = context.watch<DynamicTheme>();
 
     return MaterialApp(
       title: 'AdaptEd',
-      theme: theme.themeData, // ← single source of truth ✅
+      theme: theme.themeData,
       debugShowCheckedModeBanner: false,
       initialRoute: '/',
       onGenerateRoute: (settings) {
         return MaterialPageRoute(
           settings: settings,
-          builder: (context) => AuthWrapper(route: settings.name),
+          builder: (context) => AuthWrapper(
+            route: settings.name,
+            arguments: settings.arguments,
+          ),
         );
       },
     );
@@ -80,7 +84,8 @@ class AdaptEdApp extends StatelessWidget {
 
 class AuthWrapper extends StatelessWidget {
   final String? route;
-  const AuthWrapper({super.key, this.route});
+  final Object? arguments;
+  const AuthWrapper({super.key, this.route, this.arguments});
 
   @override
   Widget build(BuildContext context) {
@@ -107,7 +112,7 @@ class AuthWrapper extends StatelessWidget {
               body: Center(child: CircularProgressIndicator()));
         }
 
-        // 4. Sync traits → DynamicTheme  ← KEY CHANGE: moved into a helper
+        // 4. Sync traits → DynamicTheme
         _syncTraitsToTheme(context, userService);
 
         // 5. Role-based routing
@@ -124,28 +129,27 @@ class AuthWrapper extends StatelessWidget {
 
         // 7. Main app shell
         return AdaptiveLayoutShell(
-          child: _getPageForRoute(route),
+          child: _getPageForRoute(route, arguments),
         );
       },
     );
   }
 
-  // Extracted into a clean helper so the builder stays readable.
   // addPostFrameCallback ensures we don't call setState during build.
   void _syncTraitsToTheme(BuildContext context, UserService userService) {
     if (userService.currentTraits == null) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      // listen: false is correct here — we're writing, not watching
       Provider.of<DynamicTheme>(context, listen: false)
           .setTraits(userService.currentTraits!);
     });
   }
 
-  Widget _getPageForRoute(String? route) {
+  Widget _getPageForRoute(String? route, Object? arguments) {
     switch (route) {
       case '/dashboard':
       case '/':
-        return const DashboardScreen();
+        return DashboardScreen(
+            initialArguments: arguments as Map<String, dynamic>?);
       case '/library':
         return const LibraryScreen();
       case '/analytics':
@@ -163,8 +167,6 @@ class AuthWrapper extends StatelessWidget {
     }
   }
 }
-
-// --- PLACEHOLDERS ---
 
 class LoginScreen extends StatelessWidget {
   const LoginScreen({super.key});

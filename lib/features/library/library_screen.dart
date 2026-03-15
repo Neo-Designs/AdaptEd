@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:adapted/core/services/ai_service.dart';
@@ -8,6 +9,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 
@@ -54,9 +56,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
       }
     }
 
-    // Always add PDF tag
     if (title.endsWith('.pdf')) tags.add('PDF');
-
     return tags.isEmpty ? ['Document'] : tags.take(3).toList();
   }
 
@@ -64,7 +64,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
     final user = _firestoreService.currentUser;
     if (user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("You must be logged in to upload.")));
+          const SnackBar(content: Text('You must be logged in to upload.')));
       return;
     }
 
@@ -85,9 +85,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
       if (bytes == null) throw Exception('Could not read file bytes.');
 
-      if (!mounted) return;
+      if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text("Processing $fileName — generating summary…")));
+          content: Text('Processing $fileName — generating summary…')));
 
       String fileUrl = '';
       String extractedText = '';
@@ -124,13 +124,14 @@ class _LibraryScreenState extends State<LibraryScreen> {
         userTraits: traits,
       );
 
-      if (!mounted) return;
+      if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("✓ $fileName added to your library!")));
+          SnackBar(content: Text('✓ $fileName added to your library!')));
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text("Upload failed: $e")));
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Upload failed: $e')));
+      }
     } finally {
       if (mounted) setState(() => _isUploading = false);
     }
@@ -150,7 +151,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text("Your Library",
+                Text('Your Library',
                     style: theme.titleStyle.copyWith(fontSize: 24)),
                 if (_isUploading)
                   SizedBox(
@@ -165,12 +166,12 @@ class _LibraryScreenState extends State<LibraryScreen> {
             ),
             const SizedBox(height: 12),
 
-            // ← Search bar
+            // Search bar
             TextField(
               onChanged: (val) =>
                   setState(() => _searchQuery = val.toLowerCase()),
               decoration: InputDecoration(
-                hintText: "Search documents...",
+                hintText: 'Search documents...',
                 hintStyle: theme.bodyStyle.copyWith(
                   color: theme.onSurfaceTextColor.withValues(alpha: 0.4),
                 ),
@@ -211,7 +212,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                                   .withValues(alpha: 0.3)),
                           const SizedBox(height: 12),
                           Text(
-                            "No documents uploaded yet.",
+                            'No documents uploaded yet.',
                             style: theme.bodyStyle.copyWith(
                               color: theme.onSurfaceTextColor
                                   .withValues(alpha: 0.5),
@@ -234,7 +235,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                   if (docs.isEmpty) {
                     return Center(
                       child: Text(
-                        "No results for \"$_searchQuery\"",
+                        'No results for "$_searchQuery"',
                         style: theme.bodyStyle.copyWith(
                           color:
                               theme.onSurfaceTextColor.withValues(alpha: 0.5),
@@ -273,15 +274,23 @@ class _LibraryScreenState extends State<LibraryScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  "For: ${data['adaptationMetadata']?['generatedFor'] ?? 'You'}",
+                                  'For: ${data['adaptationMetadata']?['generatedFor'] ?? 'You'}',
                                   style: theme.bodyStyle.copyWith(
                                     fontSize: 11,
                                     color: theme.onSurfaceTextColor
                                         .withValues(alpha: 0.5),
                                   ),
                                 ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Added: ${_formatDate(data['createdAt'])}',
+                                  style: theme.bodyStyle.copyWith(
+                                    fontSize: 11,
+                                    color: theme.onSurfaceTextColor
+                                        .withValues(alpha: 0.4),
+                                  ),
+                                ),
                                 const SizedBox(height: 6),
-                                // ← Topic tags
                                 Wrap(
                                   spacing: 6,
                                   children: tags.map((tag) {
@@ -325,16 +334,46 @@ class _LibraryScreenState extends State<LibraryScreen> {
                                   ),
                                 ),
                               ),
+                              // Action row: View Summary + Re-summarize
                               Padding(
                                 padding: const EdgeInsets.only(bottom: 8),
-                                child: TextButton.icon(
-                                  onPressed: () {},
-                                  icon: Icon(Icons.quiz_outlined,
-                                      color: theme.primaryColor),
-                                  label: Text(
-                                    "Take Quiz on this Material",
-                                    style: TextStyle(color: theme.primaryColor),
-                                  ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.end,
+                                  children: [
+                                    TextButton.icon(
+                                      onPressed: () {
+                                        Navigator.pushReplacementNamed(
+                                          context,
+                                          '/dashboard',
+                                          arguments: {
+                                            'reSummarizeText': data['fullText'],
+                                            'fileName':
+                                                data['title'] ?? 'Document',
+                                          },
+                                        );
+                                      },
+                                      icon: Icon(Icons.refresh,
+                                          color: theme.primaryColor),
+                                      label: Text('Re-summarize',
+                                          style: TextStyle(
+                                              color: theme.primaryColor)),
+                                    ),
+                                    TextButton.icon(
+                                      onPressed: () {
+                                        _showSummaryModal(
+                                          context,
+                                          data['title'] ?? 'Summary',
+                                          data['summary'] ?? '',
+                                          theme,
+                                        );
+                                      },
+                                      icon: Icon(Icons.auto_awesome,
+                                          color: theme.primaryColor),
+                                      label: Text('View Summary',
+                                          style: TextStyle(
+                                              color: theme.primaryColor)),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],
@@ -373,10 +412,10 @@ class _LibraryScreenState extends State<LibraryScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text("Upload Document",
+                  Text('Upload Document',
                       style: theme.titleStyle.copyWith(fontSize: 16)),
                   Text(
-                    "Tap to upload PDF — auto-tagged & summarized",
+                    'Tap to upload PDF — auto-tagged & summarized',
                     style: theme.bodyStyle.copyWith(
                       fontSize: 13,
                       color: theme.onSurfaceTextColor.withValues(alpha: 0.5),
@@ -386,6 +425,162 @@ class _LibraryScreenState extends State<LibraryScreen> {
               ),
             ),
             Icon(Icons.add_circle_outline, color: theme.primaryColor, size: 24),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatDate(dynamic timestamp) {
+    if (timestamp == null) return 'Unknown date';
+    if (timestamp is Timestamp) {
+      final date = timestamp.toDate();
+      return '${date.day}/${date.month}/${date.year}';
+    }
+    return 'Unknown date';
+  }
+
+  void _showSummaryModal(
+      BuildContext context, String title, String summary, DynamicTheme theme) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return Container(
+          height: MediaQuery.of(context).size.height * 0.85,
+          decoration: BoxDecoration(
+            color: theme.backgroundColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(title,
+                        style: theme.titleStyle.copyWith(fontSize: 20),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+              const Divider(),
+              const SizedBox(height: 8),
+              Expanded(
+                child: SingleChildScrollView(
+                  child: _parseAndRenderSummary(summary, theme),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _parseAndRenderSummary(String summary, DynamicTheme theme) {
+    try {
+      String rawText = summary.trim();
+      if (rawText.startsWith('```json')) {
+        rawText = rawText.substring(7);
+      }
+      if (rawText.startsWith('```')) {
+        rawText = rawText.substring(3);
+      }
+      if (rawText.endsWith('```')) {
+        rawText = rawText.substring(0, rawText.length - 3);
+      }
+      rawText = rawText.trim();
+
+      final parsed = jsonDecode(rawText);
+      if (parsed is List) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: parsed
+              .map((item) => _buildNeuroCard(
+                    item['title']?.toString() ?? '',
+                    item['content']?.toString() ?? '',
+                    item['icon']?.toString() ?? '',
+                    theme,
+                  ))
+              .toList(),
+        );
+      }
+    } catch (_) {}
+
+    return MarkdownBody(
+      data: summary,
+      styleSheet: MarkdownStyleSheet(
+        p: theme.bodyStyle,
+        h2: theme.titleStyle.copyWith(fontSize: 16),
+        listBullet: theme.bodyStyle,
+      ),
+    );
+  }
+
+  Widget _buildNeuroCard(
+      String title, String content, String icon, DynamicTheme theme) {
+    Color bgColor = const Color(0xFFF8FAFC);
+    if (theme.traits.isADHD) bgColor = const Color(0xFFFDF2F2);
+    if (theme.traits.isAutistic) bgColor = const Color(0xFFF0F4FF);
+
+    TextStyle baseTextStyle;
+    if (theme.traits.isDyslexic) {
+      baseTextStyle = const TextStyle(
+        fontFamily: 'OpenDyslexic',
+        height: 1.6,
+        color: Colors.black87,
+      );
+    } else {
+      baseTextStyle = GoogleFonts.lexend(
+          textStyle: const TextStyle(height: 1.6, color: Colors.black87));
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16.0),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(16.0),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (title.isNotEmpty) ...[
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (icon.isNotEmpty) ...[
+                    Text(icon, style: const TextStyle(fontSize: 24)),
+                    const SizedBox(width: 8),
+                  ],
+                  Expanded(
+                    child: Text(title,
+                        style: baseTextStyle.copyWith(
+                            fontWeight: FontWeight.bold, fontSize: 18)),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+            ],
+            MarkdownBody(
+              data: content,
+              styleSheet: MarkdownStyleSheet(
+                p: baseTextStyle,
+                strong: baseTextStyle.copyWith(fontWeight: FontWeight.bold),
+                listBullet: baseTextStyle,
+                blockSpacing: 12.0,
+              ),
+            ),
           ],
         ),
       ),

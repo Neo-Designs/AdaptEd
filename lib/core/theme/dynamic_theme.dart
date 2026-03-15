@@ -12,17 +12,17 @@ class DynamicTheme extends ChangeNotifier {
   bool _useDyslexicFont = false;
   bool _focusMode = false;
   bool _isDarkMode = false;
-  bool _highContrast = false; // ← NEW
-  bool _readingRuler = false; // ← NEW
-  double _fontSizeScale = 1.0; // ← NEW: 0.8 = small, 1.0 = normal, 1.3 = large
+  bool _highContrast = false;
+  bool _readingRuler = false;
+  double _fontSizeScale = 1.0; // 0.8 = small, 1.0 = normal, 1.3 = large
 
   UserTraits get traits => _traits;
   bool get useDyslexicFont => _useDyslexicFont || _traits.isDyslexic;
   bool get focusMode => _focusMode;
   bool get isDarkMode => _isDarkMode;
-  bool get highContrast => _highContrast; // ← NEW
-  bool get readingRuler => _readingRuler; // ← NEW
-  double get fontSizeScale => _fontSizeScale; // ← NEW
+  bool get highContrast => _highContrast;
+  bool get readingRuler => _readingRuler;
+  double get fontSizeScale => _fontSizeScale;
 
   // ── Palette Resolution ────────────────────────────────────────────────────
   PaletteType get currentPalette {
@@ -61,7 +61,6 @@ class DynamicTheme extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ← NEW toggles
   void toggleHighContrast() {
     _highContrast = !_highContrast;
     AppLogger.info('High Contrast: $_highContrast', tag: 'DynamicTheme');
@@ -131,7 +130,6 @@ class DynamicTheme extends ChangeNotifier {
   // ── Public Color Tokens ───────────────────────────────────────────────────
 
   Color get primaryColor {
-    // ← high contrast dark uses bright cyan for max visibility
     if (_highContrast && _isDarkMode) return const Color(0xFF00E5FF);
     if (_highContrast) return Colors.black;
     if (_focusMode) return _focusPrimary;
@@ -190,7 +188,6 @@ class DynamicTheme extends ChangeNotifier {
       _isDarkMode ? const Color(0xFFE8E8F0) : onSurfaceTextColor;
 
   Color get onSurfaceTextColor {
-    // ← high contrast: maximum contrast text
     if (_highContrast && _isDarkMode) return Colors.white;
     if (_highContrast) return Colors.black;
     if (_isDarkMode) return const Color(0xFFE8E8F0);
@@ -209,7 +206,6 @@ class DynamicTheme extends ChangeNotifier {
       return BoxDecoration(
         color: cardColor,
         borderRadius: BorderRadius.circular(16),
-        // ← thick visible border in high contrast
         border: Border.all(
           color: _isDarkMode ? Colors.white : Colors.black,
           width: 2,

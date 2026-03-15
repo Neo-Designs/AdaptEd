@@ -100,9 +100,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ],
                 ),
                 const SizedBox(height: 16),
-                Text(user?.displayName ?? "Learner", style: theme.titleStyle),
+                Text(user?.displayName ?? 'Learner', style: theme.titleStyle),
                 Text(
-                  user?.email ?? "",
+                  user?.email ?? '',
                   style: theme.bodyStyle.copyWith(
                     color: theme.onSurfaceTextColor.withValues(alpha: 0.5),
                   ),
@@ -147,7 +147,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 // ── Trait Palette Preview ─────────────────────────────────
                 Align(
                   alignment: Alignment.centerLeft,
-                  child: Text("Your Learning Palette",
+                  child: Text('Your Learning Palette',
                       style: theme.titleStyle.copyWith(fontSize: 18)),
                 ),
                 const SizedBox(height: 12),
@@ -157,7 +157,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 // ── Appearance ────────────────────────────────────────────
                 Align(
                   alignment: Alignment.centerLeft,
-                  child: Text("Appearance",
+                  child: Text('Appearance',
                       style: theme.titleStyle.copyWith(fontSize: 18)),
                 ),
                 const SizedBox(height: 12),
@@ -168,7 +168,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 if (badges.isNotEmpty) ...[
                   Align(
                     alignment: Alignment.centerLeft,
-                    child: Text("Badges Earned",
+                    child: Text('Badges Earned',
                         style: theme.titleStyle.copyWith(fontSize: 18)),
                   ),
                   const SizedBox(height: 12),
@@ -219,7 +219,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                 // ── Action Buttons ────────────────────────────────────────
                 AdaptedButton(
-                  label: "Retake Personality Quiz",
+                  label: 'Retake Personality Quiz',
                   onPressed: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(
@@ -238,7 +238,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   onPressed: () => FirebaseAuth.instance.signOut(),
                   icon: Icon(Icons.logout, color: theme.primaryColor),
-                  label: Text("Sign Out",
+                  label: Text('Sign Out',
                       style:
                           theme.bodyStyle.copyWith(color: theme.primaryColor)),
                 ),
@@ -290,7 +290,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildStatColumn("Level", level.toString(), theme,
+              _buildStatColumn('Level', level.toString(), theme,
                   vibrant: isVibrant),
               Container(
                   width: 1,
@@ -298,14 +298,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   color: isVibrant
                       ? Colors.white.withValues(alpha: 0.3)
                       : theme.onSurfaceTextColor.withValues(alpha: 0.1)),
-              _buildStatColumn("XP", xp.toString(), theme, vibrant: isVibrant),
+              _buildStatColumn('XP', xp.toString(), theme, vibrant: isVibrant),
               Container(
                   width: 1,
                   height: 40,
                   color: isVibrant
                       ? Colors.white.withValues(alpha: 0.3)
                       : theme.onSurfaceTextColor.withValues(alpha: 0.1)),
-              _buildStatColumn("Badges", badges.length.toString(), theme,
+              _buildStatColumn('Badges', badges.length.toString(), theme,
                   vibrant: isVibrant),
             ],
           ),
@@ -378,11 +378,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
         children: [
           ListTile(
             leading: Icon(Icons.palette_outlined, color: theme.primaryColor),
-            title: Text("Color Palette", style: theme.bodyStyle),
+            title: Text('Color Palette', style: theme.bodyStyle),
             subtitle: Text(
               theme.currentPalette == PaletteType.muted
-                  ? "Muted & Calming"
-                  : "Vibrant & Energetic",
+                  ? 'Muted & Calming'
+                  : 'Vibrant & Energetic',
               style: theme.bodyStyle.copyWith(
                 fontSize: 12,
                 color: theme.onSurfaceTextColor.withValues(alpha: 0.5),
@@ -400,12 +400,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
               items: [
                 DropdownMenuItem(
                   value: PaletteType.muted,
-                  child: Text("Muted",
+                  child: Text('Muted',
                       style: theme.bodyStyle.copyWith(fontSize: 14)),
                 ),
                 DropdownMenuItem(
                   value: PaletteType.vibrant,
-                  child: Text("Vibrant",
+                  child: Text('Vibrant',
                       style: theme.bodyStyle.copyWith(fontSize: 14)),
                 ),
               ],
@@ -416,9 +416,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               color: theme.onSurfaceTextColor.withValues(alpha: 0.1)),
           ListTile(
             leading: Icon(Icons.auto_fix_high, color: theme.primaryColor),
-            title: Text("Auto-detect Palette", style: theme.bodyStyle),
+            title: Text('Auto-detect Palette', style: theme.bodyStyle),
             subtitle: Text(
-              "Based on your learning profile",
+              'Based on your learning profile',
               style: theme.bodyStyle.copyWith(
                 fontSize: 12,
                 color: theme.onSurfaceTextColor.withValues(alpha: 0.5),
@@ -439,9 +439,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ListTile(
             leading:
                 Icon(Icons.font_download_outlined, color: theme.primaryColor),
-            title: Text("Dyslexia-Friendly Font", style: theme.bodyStyle),
+            title: Text('Dyslexia-Friendly Font', style: theme.bodyStyle),
             subtitle: Text(
-              "Uses Lexend with wider spacing",
+              'Uses Lexend with wider spacing',
               style: theme.bodyStyle.copyWith(
                 fontSize: 12,
                 color: theme.onSurfaceTextColor.withValues(alpha: 0.5),
@@ -462,9 +462,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               theme.focusMode ? Icons.visibility_off : Icons.visibility,
               color: theme.primaryColor,
             ),
-            title: Text("Focus Mode", style: theme.bodyStyle),
+            title: Text('Focus Mode', style: theme.bodyStyle),
             subtitle: Text(
-              "Reduces distractions",
+              'Reduces distractions',
               style: theme.bodyStyle.copyWith(
                 fontSize: 12,
                 color: theme.onSurfaceTextColor.withValues(alpha: 0.5),
@@ -525,7 +525,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (theme.traits.isDyslexic) {
       return 'Warm creams · readable terracotta · wide spacing';
     }
-    if (theme.traits.isADHD) return 'Electric blue · hot pink XP · high energy';
+    if (theme.traits.isADHD) {
+      return 'Electric blue · hot pink XP · high energy';
+    }
     if (theme.traits.isDyspraxic) {
       return 'Bold purple · vivid orange · large tap targets';
     }

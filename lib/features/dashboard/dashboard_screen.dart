@@ -6,9 +6,11 @@ import 'dart:typed_data';
 import 'package:adapted/core/services/ai_service.dart';
 import 'package:adapted/core/services/firestore_service.dart';
 import 'package:adapted/core/theme/dynamic_theme.dart';
+import 'package:adapted/core/utils/logger.dart';
 import 'package:adapted/core/widgets/adapted_card.dart';
 import 'package:adapted/core/widgets/xp_bar.dart';
 import 'package:adapted/features/quiz/assessment_screen.dart';
+import 'package:adapted/features/screening/scoring_engine.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -20,7 +22,8 @@ import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({super.key});
+  final Map<String, dynamic>? initialArguments;
+  const DashboardScreen({super.key, this.initialArguments});
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -36,19 +39,22 @@ class _DashboardScreenState extends State<DashboardScreen>
   final stt.SpeechToText _speech = stt.SpeechToText();
 
   List<Map<String, dynamic>> _messages = [];
+
+  // ── Session management ────────────────────────────────────────────────────
+  String? _activeSessionId;
+  StreamSubscription<QuerySnapshot>? _chatSubscription;
+
   bool _isUploading = false;
   bool _isSpeaking = false;
   bool _isListening = false;
   bool _speechEnabled = false;
   bool _isAiTyping = false;
-  String _extractedText = "";
+  String _extractedText = '';
 
   // ── Typing animation ──────────────────────────────────────────────────────
   int? _typingMessageIndex;
   String _typingDisplayText = '';
   Timer? _typingTimer;
-
-  // ← NEW: user is composing text
   bool _userIsTyping = false;
 
   // ── Review ────────────────────────────────────────────────────────────────
@@ -68,8 +74,25 @@ class _DashboardScreenState extends State<DashboardScreen>
     super.initState();
     _initTts();
     _initStt();
-    _loadChatHistory();
-    // ← listen for typing state
+
+    // Session routing
+    if (widget.initialArguments != null &&
+        widget.initialArguments!['reSummarizeText'] != null) {
+      _createNewSession();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _uploadDocumentFromText(
+          widget.initialArguments!['reSummarizeText'],
+          widget.initialArguments!['fileName'] ?? 'Document',
+        );
+      });
+    } else if (widget.initialArguments != null &&
+        widget.initialArguments!['sessionId'] != null) {
+      _setActiveSession(widget.initialArguments!['sessionId']);
+    } else {
+      _loadInitialSession();
+    }
+
+    // Typing state listener
     _chatController.addListener(() {
       final typing = _chatController.text.isNotEmpty;
       if (typing != _userIsTyping) {
@@ -81,13 +104,62 @@ class _DashboardScreenState extends State<DashboardScreen>
   @override
   void dispose() {
     _typingTimer?.cancel();
+    _chatSubscription?.cancel();
     _reviewController.dispose();
     _chatController.dispose();
+    _scrollController.dispose();
+    _flutterTts.stop();
     super.dispose();
   }
 
+  // ── Session Management ────────────────────────────────────────────────────
+  void _loadInitialSession() async {
+    if (_firestoreService.currentUser == null) return;
+
+    final sessionsSnap = await FirebaseFirestore.instance
+        .collection('sessions')
+        .where('userId', isEqualTo: _firestoreService.currentUser!.uid)
+        .orderBy('lastActive', descending: true)
+        .limit(1)
+        .get();
+
+    if (sessionsSnap.docs.isNotEmpty) {
+      _setActiveSession(sessionsSnap.docs.first.id);
+    } else {
+      _createNewSession();
+    }
+  }
+
+  void _createNewSession() async {
+    final newId = await _firestoreService.createChatSession(title: 'New Chat');
+    _setActiveSession(newId);
+    await _firestoreService.saveChatMessage(newId, 'ai',
+        'Hello! I\'m your adaptive learning assistant. Upload a document to get a summary or ask me a question!');
+  }
+
+  void _setActiveSession(String sessionId) {
+    _chatSubscription?.cancel();
+    if (mounted) {
+      setState(() {
+        _activeSessionId = sessionId;
+        _messages = [];
+      });
+    }
+
+    _chatSubscription =
+        _firestoreService.getChatMessages(sessionId).listen((snapshot) {
+      final messages = snapshot.docs
+          .map((doc) => doc.data() as Map<String, dynamic>)
+          .toList();
+      if (mounted) {
+        setState(() => _messages = messages);
+        _scrollToBottom();
+      }
+    });
+  }
+
   void _initTts() async {
-    await _flutterTts.setLanguage("en-US");
+    await _flutterTts.setLanguage('en-US');
     await _flutterTts.setPitch(1.0);
     _flutterTts.setCompletionHandler(() {
       if (mounted) setState(() => _isSpeaking = false);
@@ -100,18 +172,6 @@ class _DashboardScreenState extends State<DashboardScreen>
       onStatus: (val) => debugPrint('STT Status: $val'),
     );
     if (mounted) setState(() {});
-  }
-
-  void _loadChatHistory() {
-    _firestoreService.getChatMessages().listen((snapshot) {
-      final messages = snapshot.docs
-          .map((doc) => doc.data() as Map<String, dynamic>)
-          .toList();
-      if (mounted) {
-        setState(() => _messages = messages);
-        _scrollToBottom();
-      }
-    });
   }
 
   void _showChatHistory(DynamicTheme theme) {
@@ -129,7 +189,6 @@ class _DashboardScreenState extends State<DashboardScreen>
         expand: false,
         builder: (ctx, scrollCtrl) => Column(
           children: [
-            // ── Handle bar ──
             Container(
               width: 40,
               height: 4,
@@ -139,8 +198,6 @@ class _DashboardScreenState extends State<DashboardScreen>
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
-
-            // ── Header ──
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
               child: Row(
@@ -148,14 +205,13 @@ class _DashboardScreenState extends State<DashboardScreen>
                   Icon(Icons.history_rounded,
                       color: theme.primaryColor, size: 20),
                   const SizedBox(width: 8),
-                  Text("Chat History",
+                  Text('Chat History',
                       style: theme.titleStyle.copyWith(fontSize: 18)),
                   const Spacer(),
-                  // ← New chat button
                   GestureDetector(
                     onTap: () {
-                      setState(() => _messages = []);
                       Navigator.pop(ctx);
+                      _createNewSession();
                     },
                     child: Container(
                       padding: const EdgeInsets.symmetric(
@@ -168,7 +224,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                         children: [
                           const Icon(Icons.add, color: Colors.white, size: 14),
                           const SizedBox(width: 4),
-                          Text("New chat",
+                          Text('New chat',
                               style: theme.bodyStyle
                                   .copyWith(color: Colors.white, fontSize: 12)),
                         ],
@@ -181,25 +237,55 @@ class _DashboardScreenState extends State<DashboardScreen>
             Divider(
                 height: 1,
                 color: theme.onSurfaceTextColor.withValues(alpha: 0.1)),
-
-            // ── Placeholder — backend will populate this ──
             Expanded(
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.history_rounded,
-                        size: 48,
-                        color: theme.onSurfaceTextColor.withValues(alpha: 0.2)),
-                    const SizedBox(height: 12),
-                    Text(
-                      "Session history coming soon",
-                      style: theme.bodyStyle.copyWith(
-                        color: theme.onSurfaceTextColor.withValues(alpha: 0.4),
+              child: StreamBuilder<QuerySnapshot>(
+                stream: _firestoreService.getChatSessions(),
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  final docs = snapshot.data!.docs;
+                  if (docs.isEmpty) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.history_rounded,
+                              size: 48,
+                              color: theme.onSurfaceTextColor
+                                  .withValues(alpha: 0.2)),
+                          const SizedBox(height: 12),
+                          Text('No sessions yet',
+                              style: theme.bodyStyle.copyWith(
+                                color: theme.onSurfaceTextColor
+                                    .withValues(alpha: 0.4),
+                              )),
+                        ],
                       ),
-                    ),
-                  ],
-                ),
+                    );
+                  }
+                  return ListView.builder(
+                    controller: scrollCtrl,
+                    itemCount: docs.length,
+                    itemBuilder: (context, index) {
+                      final data = docs[index].data() as Map<String, dynamic>;
+                      final isSelected = _activeSessionId == docs[index].id;
+                      return ListTile(
+                        selected: isSelected,
+                        selectedColor: theme.primaryColor,
+                        selectedTileColor:
+                            theme.primaryColor.withValues(alpha: 0.1),
+                        leading: const Icon(Icons.chat_bubble_outline),
+                        title: Text(data['title'] ?? 'New Chat',
+                            maxLines: 1, overflow: TextOverflow.ellipsis),
+                        onTap: () {
+                          Navigator.pop(ctx);
+                          _setActiveSession(docs[index].id);
+                        },
+                      );
+                    },
+                  );
+                },
               ),
             ),
           ],
@@ -271,14 +357,14 @@ class _DashboardScreenState extends State<DashboardScreen>
         onResult: (val) {
           setState(() => _chatController.text = val.recognizedWords);
           if (val.hasConfidenceRating && val.confidence > 0) {
-            if (val.recognizedWords.toLowerCase().contains("upload")) {
+            if (val.recognizedWords.toLowerCase().contains('upload')) {
               _speech.stop();
               _uploadDocument(context);
             }
           }
         },
         listenFor: const Duration(seconds: 30),
-        localeId: "en_US",
+        localeId: 'en_US',
         onSoundLevelChange: (level) {},
         listenOptions: stt.SpeechListenOptions(
           partialResults: true,
@@ -291,7 +377,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   void _navigateToQuiz() {
     if (_extractedText.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text("No material to quiz on yet! Upload a PDF first.")));
+          content: Text('No material to quiz on yet! Upload a PDF first.')));
       return;
     }
     Navigator.of(context).push(
@@ -300,27 +386,71 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
+  void _showReviewDialog() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        final reviewCtrl = TextEditingController();
+        return AlertDialog(
+          title: const Text('Leave a Review'),
+          content: TextField(
+            controller: reviewCtrl,
+            decoration: const InputDecoration(
+                hintText: 'How is your learning experience?'),
+            maxLines: 3,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (reviewCtrl.text.isNotEmpty) {
+                  try {
+                    await FirebaseFirestore.instance.collection('reviews').add({
+                      'userId': _firestoreService.currentUser?.uid,
+                      'text': reviewCtrl.text,
+                      'rating': 5,
+                      'timestamp': FieldValue.serverTimestamp(),
+                    });
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                          content: Text('Thanks for your feedback!')));
+                    }
+                  } catch (e) {
+                    AppLogger.error('Failed to save review', error: e);
+                  }
+                }
+                if (context.mounted) Navigator.pop(context);
+              },
+              child: const Text('Submit'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = context.watch<DynamicTheme>();
+    final user = _firestoreService.currentUser;
 
     return Stack(
       children: [
         Scaffold(
           backgroundColor: theme.backgroundColor,
+          drawer: _buildChatsDrawer(theme),
           body: SafeArea(
             child: Column(
               children: [
-                // XP Header
-                if (_firestoreService.currentUser != null)
+                if (user != null)
                   Padding(
                     padding: EdgeInsets.fromLTRB(theme.interactivePadding,
                         theme.interactivePadding, theme.interactivePadding, 0),
-                    child: _buildProfileHeader(
-                        theme, _firestoreService.currentUser!.uid),
+                    child: _buildProfileHeader(theme, user.uid),
                   ),
-
-                // ← Main chat area takes all remaining space
                 Expanded(
                   child: Padding(
                     padding: EdgeInsets.symmetric(
@@ -328,8 +458,6 @@ class _DashboardScreenState extends State<DashboardScreen>
                     child: _buildChatArea(theme),
                   ),
                 ),
-
-                // ← Review section at very bottom
                 Padding(
                   padding: EdgeInsets.fromLTRB(theme.interactivePadding, 8,
                       theme.interactivePadding, theme.interactivePadding),
@@ -348,6 +476,72 @@ class _DashboardScreenState extends State<DashboardScreen>
         if (_showConfetti)
           IgnorePointer(child: _ConfettiOverlay(color: theme.xpAccentColor)),
       ],
+    );
+  }
+
+  // ── Chats Drawer ──────────────────────────────────────────────────────────
+  Widget _buildChatsDrawer(DynamicTheme theme) {
+    return Drawer(
+      child: Column(
+        children: [
+          Container(
+            padding:
+                const EdgeInsets.only(top: 50, bottom: 20, left: 16, right: 16),
+            color: theme.primaryColor,
+            child: Row(
+              children: [
+                const Icon(Icons.forum, color: Colors.white),
+                const SizedBox(width: 12),
+                Text('Chats',
+                    style: theme.titleStyle
+                        .copyWith(color: Colors.white, fontSize: 20)),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.add, color: Colors.white),
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _createNewSession();
+                  },
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: _firestoreService.getChatSessions(),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                final docs = snapshot.data!.docs;
+                if (docs.isEmpty) {
+                  return const Center(child: Text('No chats yet.'));
+                }
+                return ListView.builder(
+                  itemCount: docs.length,
+                  itemBuilder: (context, index) {
+                    final data = docs[index].data() as Map<String, dynamic>;
+                    final isSelected = _activeSessionId == docs[index].id;
+                    return ListTile(
+                      selected: isSelected,
+                      selectedColor: theme.primaryColor,
+                      selectedTileColor:
+                          theme.primaryColor.withValues(alpha: 0.1),
+                      leading: const Icon(Icons.chat_bubble_outline),
+                      title: Text(data['title'] ?? 'New Chat',
+                          maxLines: 1, overflow: TextOverflow.ellipsis),
+                      onTap: () {
+                        Navigator.pop(context);
+                        _setActiveSession(docs[index].id);
+                      },
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -388,13 +582,13 @@ class _DashboardScreenState extends State<DashboardScreen>
                   children: [
                     Row(
                       children: [
-                        Text("Level $level • $xp XP",
+                        Text('Level $level • $xp XP',
                             style: theme.titleStyle.copyWith(fontSize: 14)),
                         const Spacer(),
                         if (streak > 0) ...[
-                          const Text("🔥", style: TextStyle(fontSize: 16)),
+                          const Text('🔥', style: TextStyle(fontSize: 16)),
                           const SizedBox(width: 4),
-                          Text("$streak day${streak == 1 ? '' : 's'}",
+                          Text('$streak day${streak == 1 ? '' : 's'}',
                               style: theme.bodyStyle.copyWith(
                                 fontSize: 12,
                                 color: theme.xpAccentColor,
@@ -415,21 +609,16 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  // ── Main Chat Area (Claude-style) ─────────────────────────────────────────
+  // ── Main Chat Area ────────────────────────────────────────────────────────
   Widget _buildChatArea(DynamicTheme theme) {
     final hasMessages = _messages.isNotEmpty;
-
     return Column(
       children: [
-        // ── Messages / Empty state ──────────────────────────────────────────
         Expanded(
           child:
               hasMessages ? _buildMessagesList(theme) : _buildEmptyState(theme),
         ),
-
         const SizedBox(height: 8),
-
-        // ── Bottom input bar (Claude-style) ─────────────────────────────────
         _buildBottomInputBar(theme),
       ],
     );
@@ -444,51 +633,50 @@ class _DashboardScreenState extends State<DashboardScreen>
             ? 'Good afternoon'
             : 'Good evening';
 
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 64,
-            height: 64,
-            decoration: BoxDecoration(
-              color: theme.primaryColor.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(20),
-              border:
-                  Border.all(color: theme.primaryColor.withValues(alpha: 0.3)),
+    return SingleChildScrollView(
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: theme.primaryColor.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                    color: theme.primaryColor.withValues(alpha: 0.3)),
+              ),
+              child:
+                  Icon(Icons.auto_awesome, size: 32, color: theme.primaryColor),
             ),
-            child:
-                Icon(Icons.auto_awesome, size: 32, color: theme.primaryColor),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            "$greeting! ✨",
-            style: theme.titleStyle.copyWith(fontSize: 22),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            "Upload a document or ask me anything",
-            style: theme.bodyStyle.copyWith(
-              color: theme.onSurfaceTextColor.withValues(alpha: 0.5),
+            const SizedBox(height: 20),
+            Text('$greeting! ✨',
+                style: theme.titleStyle.copyWith(fontSize: 22)),
+            const SizedBox(height: 8),
+            Text(
+              'Upload a document or ask me anything',
+              style: theme.bodyStyle.copyWith(
+                color: theme.onSurfaceTextColor.withValues(alpha: 0.5),
+              ),
+              textAlign: TextAlign.center,
             ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 32),
-          // ← Suggestion cards
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            alignment: WrapAlignment.center,
-            children: [
-              _buildSuggestionCard(theme, "📄", "Upload a PDF",
-                  "Upload a document to get started"),
-              _buildSuggestionCard(
-                  theme, "🧠", "Quiz me", "Test your knowledge"),
-              _buildSuggestionCard(
-                  theme, "💬", "Ask anything", "I'm here to help you learn"),
-            ],
-          ),
-        ],
+            const SizedBox(height: 32),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              alignment: WrapAlignment.center,
+              children: [
+                _buildSuggestionCard(theme, '📄', 'Upload a PDF',
+                    'Upload a document to get started'),
+                _buildSuggestionCard(
+                    theme, '🧠', 'Quiz me', 'Test your knowledge'),
+                _buildSuggestionCard(
+                    theme, '💬', 'Ask anything', 'I\'m here to help you learn'),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -497,7 +685,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       DynamicTheme theme, String emoji, String title, String subtitle) {
     return GestureDetector(
       onTap: () {
-        if (title == "Upload a PDF") {
+        if (title == 'Upload a PDF') {
           _uploadDocument(context);
         } else {
           _chatController.text = subtitle;
@@ -544,17 +732,13 @@ class _DashboardScreenState extends State<DashboardScreen>
     return ListView.builder(
       controller: _scrollController,
       padding: const EdgeInsets.fromLTRB(0, 12, 0, 8),
-      // +1 for AI typing, +1 for user typing bubble
       itemCount:
           _messages.length + (_isAiTyping ? 1 : 0) + (_userIsTyping ? 1 : 0),
       itemBuilder: (context, index) {
-        // ← User typing bubble
         if (_userIsTyping &&
             index == _messages.length + (_isAiTyping ? 1 : 0)) {
           return _buildUserTypingBubble(theme);
         }
-
-        // ← AI thinking indicator
         if (_isAiTyping && index == _messages.length) {
           return _buildTypingIndicator(theme);
         }
@@ -575,7 +759,6 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  // ← NEW: User typing bubble (shows while composing)
   Widget _buildUserTypingBubble(DynamicTheme theme) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -621,7 +804,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  // ── Bottom Input Bar (Claude-style) ───────────────────────────────────────
+  // ── Bottom Input Bar ──────────────────────────────────────────────────────
   Widget _buildBottomInputBar(DynamicTheme theme) {
     return Container(
       decoration: BoxDecoration(
@@ -640,27 +823,21 @@ class _DashboardScreenState extends State<DashboardScreen>
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // ← Quick action chips row
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
             child: _buildQuickActionChips(theme),
           ),
-
-          // ← Text input row
           Padding(
             padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                // Upload button
                 _inputIconButton(
                   icon: Icons.attach_file_rounded,
                   color: theme.primaryColor,
-                  tooltip: "Upload PDF",
+                  tooltip: 'Upload PDF',
                   onTap: () => _uploadDocument(context),
                 ),
-
-                // Text field
                 Expanded(
                   child: TextField(
                     controller: _chatController,
@@ -668,7 +845,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                     minLines: 1,
                     textInputAction: TextInputAction.newline,
                     decoration: InputDecoration(
-                      hintText: "Ask anything...",
+                      hintText: 'Ask anything...',
                       hintStyle: theme.bodyStyle.copyWith(
                         color: theme.onSurfaceTextColor.withValues(alpha: 0.35),
                       ),
@@ -680,26 +857,20 @@ class _DashboardScreenState extends State<DashboardScreen>
                     onSubmitted: (_) => _sendMessage(theme),
                   ),
                 ),
-
-                // Mic button
                 _inputIconButton(
                   icon: _isListening ? Icons.mic : Icons.mic_none_rounded,
                   color: _isListening
                       ? Colors.red
                       : theme.onSurfaceTextColor.withValues(alpha: 0.4),
-                  tooltip: "Voice input",
+                  tooltip: 'Voice input',
                   onTap: _listen,
                 ),
-
-                // Clear button
                 _inputIconButton(
                   icon: Icons.history_rounded,
                   color: theme.onSurfaceTextColor.withValues(alpha: 0.4),
-                  tooltip: "Chat history",
+                  tooltip: 'Chat history',
                   onTap: () => _showChatHistory(theme),
                 ),
-
-                // Send button — only shows when text entered
                 AnimatedSwitcher(
                   duration: const Duration(milliseconds: 200),
                   child: _userIsTyping
@@ -723,8 +894,6 @@ class _DashboardScreenState extends State<DashboardScreen>
               ],
             ),
           ),
-
-          // ← Upload progress
           if (_isUploading)
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
@@ -878,7 +1047,12 @@ class _DashboardScreenState extends State<DashboardScreen>
                     maxWidth: MediaQuery.of(context).size.width * 0.72,
                   ),
                   decoration: BoxDecoration(
-                    color: isUser ? theme.primaryColor : theme.backgroundColor,
+                    color: isUser
+                        ? theme.primaryColor
+                        : theme.isDarkMode
+                            ? const Color(
+                                0xFF2A2A3E) // ← visible dark card color
+                            : theme.backgroundColor,
                     borderRadius: BorderRadius.only(
                       topLeft: const Radius.circular(18),
                       topRight: const Radius.circular(18),
@@ -932,7 +1106,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                               color: theme.primaryColor.withValues(alpha: 0.6),
                             ),
                             const SizedBox(width: 2),
-                            Text("Read aloud",
+                            Text('Read aloud',
                                 style: theme.bodyStyle.copyWith(
                                   fontSize: 10,
                                   color:
@@ -1104,7 +1278,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               children: [
                 _TypingDots(color: theme.primaryColor),
                 const SizedBox(width: 8),
-                Text("thinking...",
+                Text('thinking...',
                     style: theme.bodyStyle.copyWith(
                       fontSize: 12,
                       color: theme.onSurfaceTextColor.withValues(alpha: 0.5),
@@ -1126,7 +1300,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           children: [
             Icon(Icons.check_circle, color: theme.primaryColor, size: 20),
             const SizedBox(width: 8),
-            Text("Thanks for your feedback!",
+            Text('Thanks for your feedback!',
                 style: theme.bodyStyle.copyWith(
                     color: theme.primaryColor, fontWeight: FontWeight.w600)),
           ],
@@ -1143,8 +1317,33 @@ class _DashboardScreenState extends State<DashboardScreen>
               Icon(Icons.star_rate_rounded,
                   color: theme.xpAccentColor, size: 20),
               const SizedBox(width: 8),
-              Text("Rate this session",
+              Text('Rate this session',
                   style: theme.titleStyle.copyWith(fontSize: 15)),
+              const Spacer(),
+              GestureDetector(
+                onTap: _showReviewDialog,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: theme.primaryColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                        color: theme.primaryColor.withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.edit_outlined,
+                          size: 13, color: theme.primaryColor),
+                      const SizedBox(width: 4),
+                      Text('Write a review',
+                          style: theme.bodyStyle.copyWith(
+                              fontSize: 12, color: theme.primaryColor)),
+                    ],
+                  ),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 10),
@@ -1174,7 +1373,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               controller: _reviewController,
               maxLines: 2,
               decoration: InputDecoration(
-                hintText: "Tell us about your experience (optional)...",
+                hintText: 'Tell us about your experience (optional)...',
                 hintStyle: theme.bodyStyle.copyWith(
                   fontSize: 13,
                   color: theme.onSurfaceTextColor.withValues(alpha: 0.4),
@@ -1204,7 +1403,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                 onPressed: () {
                   setState(() => _reviewSubmitted = true);
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                    content: Text("⭐ ${"★" * _reviewStars} — Thank you!"),
+                    content: Text('⭐ ${'★' * _reviewStars} — Thank you!'),
                     backgroundColor: theme.primaryColor,
                   ));
                 },
@@ -1215,7 +1414,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                       borderRadius: BorderRadius.circular(12)),
                   padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
-                child: Text("Submit Review", style: theme.buttonTextStyle),
+                child: Text('Submit Review', style: theme.buttonTextStyle),
               ),
             ),
           ],
@@ -1231,7 +1430,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         padding: const EdgeInsets.symmetric(vertical: 12.0),
         child: Column(
           children: [
-            Text("Awesome job! What's next?",
+            Text('Awesome job! What\'s next?',
                 style: theme.titleStyle.copyWith(fontSize: 15)),
             const SizedBox(height: 10),
             Row(
@@ -1240,7 +1439,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                 ElevatedButton.icon(
                   onPressed: () => _uploadDocument(context),
                   icon: const Icon(Icons.upload_file, size: 16),
-                  label: const Text("Upload More"),
+                  label: const Text('Upload More'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: theme.secondaryColor,
                     foregroundColor: Colors.white,
@@ -1252,7 +1451,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                 ElevatedButton.icon(
                   onPressed: _navigateToQuiz,
                   icon: const Icon(Icons.quiz, size: 16),
-                  label: const Text("Take Quiz"),
+                  label: const Text('Take Quiz'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: theme.primaryColor,
                     foregroundColor: Colors.white,
@@ -1271,31 +1470,49 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   // ── Send Message ──────────────────────────────────────────────────────────
   void _sendMessage(DynamicTheme theme) async {
-    if (_chatController.text.trim().isEmpty) return;
-    final text = _chatController.text.trim();
-    _chatController.clear();
+    if (_chatController.text.trim().isEmpty || _activeSessionId == null) return;
 
-    await _firestoreService.saveChatMessage('user', text);
+    final text = _chatController.text.trim();
+    final sessionId = _activeSessionId!;
+
+    // Auto-title session on first user message
+    if (_messages.where((m) => m['role'] == 'user').isEmpty) {
+      final words = text.split(' ');
+      final newTitle =
+          words.take(5).join(' ') + (words.length > 5 ? '...' : '');
+      FirebaseFirestore.instance
+          .collection('sessions')
+          .doc(sessionId)
+          .update({'title': newTitle});
+    }
+
+    _chatController.clear();
+    await _firestoreService.saveChatMessage(sessionId, 'user', text);
     setState(() => _isAiTyping = true);
     _scrollToBottom();
 
     try {
-      final response =
-          await _aiService.chatWithAI(text, theme.traits.learningProfileName);
-      await _firestoreService.saveChatMessage('ai', response);
+      final response = await _aiService.chatWithAI(
+        text,
+        theme.traits.learningProfileName,
+        onWait: (msg) {
+          if (mounted) {
+            _firestoreService.saveChatMessage(sessionId, 'ai', msg);
+          }
+        },
+      );
+      await _firestoreService.saveChatMessage(sessionId, 'ai', response);
 
       if (mounted) {
         setState(() => _isAiTyping = false);
         final newIndex = _messages.length - 1;
-        if (newIndex >= 0) {
-          _startTypingAnimation(newIndex, response);
-        }
+        if (newIndex >= 0) _startTypingAnimation(newIndex, response);
       }
     } catch (e) {
       setState(() => _isAiTyping = false);
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text("AI Error: $e")));
+            .showSnackBar(SnackBar(content: Text('AI Error: $e')));
       }
     }
     _scrollToBottom();
@@ -1313,13 +1530,20 @@ class _DashboardScreenState extends State<DashboardScreen>
     });
   }
 
+  // ── Upload Document ───────────────────────────────────────────────────────
   Future<void> _uploadDocument(BuildContext context) async {
     final user = _firestoreService.currentUser;
     if (user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("You must be logged in to upload.")));
+          const SnackBar(content: Text('You must be logged in to upload.')));
       return;
     }
+
+    if (_activeSessionId == null) {
+      _createNewSession();
+      await Future.delayed(const Duration(milliseconds: 300));
+    }
+    final sessionId = _activeSessionId!;
 
     setState(() => _isUploading = true);
 
@@ -1356,56 +1580,185 @@ class _DashboardScreenState extends State<DashboardScreen>
         extractedText = '';
       }
 
-      if (!mounted) return;
-      setState(() => _isAiTyping = true);
-
+      if (!context.mounted) return;
       final traits = Provider.of<DynamicTheme>(context, listen: false).traits;
-      await _firestoreService.saveChatMessage(
-          'ai', 'Reading $fileName and generating your personalised summary…');
+      await _firestoreService.saveChatMessage(sessionId, 'ai',
+          'Reading $fileName and generating your personalised summary…');
 
       final String summary = await _aiService.generateAdaptiveSummary(
         extractedText,
         isADHD: traits.isADHD,
         isAutistic: traits.isAutistic,
         isDyslexic: traits.isDyslexic,
+        isDyspraxic: traits.isDyspraxic,
+        onWait: (msg) {
+          if (mounted) {
+            _firestoreService.saveChatMessage(sessionId, 'ai', msg);
+          }
+        },
       );
 
       if (!mounted) return;
-      setState(() => _isAiTyping = false);
-
       await _firestoreService.saveLearningMaterial(
         title: fileName,
         summary: summary,
         fullText: extractedText,
         fileUrl: fileUrl,
         userTraits: traits,
+        sessionId: sessionId,
       );
 
+      await FirebaseFirestore.instance
+          .collection('sessions')
+          .doc(sessionId)
+          .update({'title': fileName, 'pdfName': fileName});
+
+      if (!mounted) return;
+      await _firestoreService.saveChatMessage(sessionId, 'ai',
+          'Here is your personalised summary for **$fileName**:');
+
+      try {
+        String rawText = summary.trim();
+        if (rawText.startsWith('```json')) {
+          rawText = rawText.substring(7);
+        }
+        if (rawText.startsWith('```')) {
+          rawText = rawText.substring(3);
+        }
+        if (rawText.endsWith('```')) {
+          rawText = rawText.substring(0, rawText.length - 3);
+        }
+        rawText = rawText.trim();
+
+        final List<dynamic> parsedChunks = jsonDecode(rawText);
+        for (var chunk in parsedChunks) {
+          if (!mounted) break;
+          final chunkString = jsonEncode([chunk]);
+          await _firestoreService.saveChatMessage(sessionId, 'ai', chunkString);
+          await Future.delayed(const Duration(milliseconds: 1000));
+        }
+      } catch (e) {
+        if (!mounted) return;
+        await _firestoreService.saveChatMessage(sessionId, 'ai', summary);
+        // ← ADD typing animation
+        if (mounted) {
+          final newIndex = _messages.length - 1;
+          if (newIndex >= 0) {
+            _startTypingAnimation(newIndex, summary);
+          }
+        }
+      }
+
       await _firestoreService.saveChatMessage(
-          'ai', 'Here is your personalised summary for **$fileName**:');
-      await _firestoreService.saveChatMessage('ai', summary);
-      await _firestoreService.saveChatMessage(
-          'system_action', 'prompt_upload_or_quiz');
+          sessionId, 'system_action', 'prompt_upload_or_quiz');
     } catch (e) {
-      setState(() => _isAiTyping = false);
-      if (mounted) {
+      if (context.mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text("Upload/Analyse failed: $e")));
+            .showSnackBar(SnackBar(content: Text('Upload/Analyse failed: $e')));
       }
     } finally {
       if (mounted) setState(() => _isUploading = false);
     }
   }
 
+  Future<void> _uploadDocumentFromText(
+      String extractedText, String fileName) async {
+    final user = _firestoreService.currentUser;
+    if (user == null || _activeSessionId == null) return;
+    final sessionId = _activeSessionId!;
+
+    setState(() => _isUploading = true);
+    if (!mounted) return;
+    final traits = Provider.of<DynamicTheme>(context, listen: false).traits;
+
+    await _firestoreService.saveChatMessage(
+        sessionId, 'ai', 'Re-analyzing $fileName for a new summary...');
+
+    try {
+      final String summary = await _aiService.generateAdaptiveSummary(
+        extractedText,
+        isADHD: traits.isADHD,
+        isAutistic: traits.isAutistic,
+        isDyslexic: traits.isDyslexic,
+        isDyspraxic: traits.isDyspraxic,
+        onWait: (msg) {
+          if (mounted) {
+            _firestoreService.saveChatMessage(sessionId, 'ai', msg);
+          }
+        },
+      );
+
+      if (!mounted) return;
+      FirebaseFirestore.instance
+          .collection('sessions')
+          .doc(sessionId)
+          .update({'title': 'Re-Summary: $fileName'});
+
+      await _firestoreService.saveChatMessage(sessionId, 'ai',
+          'Here is your re-generated summary for **$fileName**:');
+
+      try {
+        String rawText = summary.trim();
+        if (rawText.startsWith('```json')) {
+          rawText = rawText.substring(7);
+        }
+        if (rawText.startsWith('```')) {
+          rawText = rawText.substring(3);
+        }
+        if (rawText.endsWith('```')) {
+          rawText = rawText.substring(0, rawText.length - 3);
+        }
+        rawText = rawText.trim();
+
+        final List<dynamic> parsedChunks = jsonDecode(rawText);
+        for (var chunk in parsedChunks) {
+          if (!mounted) break;
+          final chunkString = jsonEncode([chunk]);
+          await _firestoreService.saveChatMessage(sessionId, 'ai', chunkString);
+          await Future.delayed(const Duration(milliseconds: 1000));
+        }
+      } catch (e) {
+        if (!mounted) return;
+        await _firestoreService.saveChatMessage(sessionId, 'ai', summary);
+      }
+      await _firestoreService.saveChatMessage(
+          sessionId, 'system_action', 'prompt_upload_or_quiz');
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Re-summarize failed: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _isUploading = false);
+    }
+  }
+
+  // ── Neuro Card ────────────────────────────────────────────────────────────
   Widget _buildNeuroCard(
       String title, String content, String icon, DynamicTheme theme) {
+    Color bgColor = const Color(0xFFF8FAFC);
+    if (theme.traits.isADHD) bgColor = const Color(0xFFFDF2F2);
+    if (theme.traits.isAutistic) bgColor = const Color(0xFFF0F4FF);
+
+    final cardTextColor = theme.isDarkMode ? Colors.white : Colors.black87;
+    TextStyle baseTextStyle;
+    if (theme.traits.isDyslexic) {
+      baseTextStyle = TextStyle(
+        fontFamily: 'OpenDyslexic',
+        height: 1.6,
+        color: cardTextColor, // ← fixed
+      );
+    } else {
+      baseTextStyle = GoogleFonts.lexend(
+          textStyle: TextStyle(height: 1.6, color: cardTextColor)); // ← fixed
+    }
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12.0),
       decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(14.0),
-        border:
-            Border.all(color: theme.onSurfaceTextColor.withValues(alpha: 0.08)),
+        color: bgColor,
+        borderRadius: BorderRadius.circular(16.0),
+        border: Border.all(color: Colors.grey.shade200),
       ),
       child: Padding(
         padding: const EdgeInsets.all(14.0),
@@ -1422,22 +1775,22 @@ class _DashboardScreenState extends State<DashboardScreen>
                   ],
                   Expanded(
                     child: Text(title,
-                        style: GoogleFonts.lexend(
-                          textStyle: theme.titleStyle.copyWith(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                            height: 1.5,
-                          ),
+                        style: baseTextStyle.copyWith(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5,
                         )),
                   ),
                 ],
               ),
               const SizedBox(height: 10),
             ],
-            MarkdownBody(
+            TypewriterMarkdown(
               data: content.trim(),
               styleSheet: _getMarkdownStyle(theme),
-              builders: {'strong': _AdhdHighlightBuilder(theme.traits.isADHD)},
+              builders: {
+                'strong': _HighlightBuilder(theme.traits),
+              },
             ),
           ],
         ),
@@ -1451,32 +1804,34 @@ class _DashboardScreenState extends State<DashboardScreen>
     final double wSpacing = isDyslexic ? 2.0 : 0.0;
     const double hght = 1.6;
 
+    // ← Fix: use white in dark mode, black87 in light mode
+    final textColor = theme.isDarkMode ? Colors.white : Colors.black87;
+
+    TextStyle baseTextStyle;
+    if (isDyslexic) {
+      baseTextStyle = TextStyle(
+        fontFamily: 'OpenDyslexic',
+        color: textColor, // ← was Colors.black87
+        height: hght,
+        letterSpacing: lSpacing,
+        wordSpacing: wSpacing,
+      );
+    } else {
+      baseTextStyle = GoogleFonts.lexend(
+          textStyle: theme.bodyStyle.copyWith(
+              color: textColor, // ← was Colors.black87
+              height: hght,
+              letterSpacing: lSpacing,
+              wordSpacing: wSpacing));
+    }
+
     return MarkdownStyleSheet(
-      p: GoogleFonts.lexend(
-          textStyle: theme.bodyStyle.copyWith(
-              height: hght, letterSpacing: lSpacing, wordSpacing: wSpacing)),
-      strong: GoogleFonts.lexend(
-          textStyle: theme.bodyStyle.copyWith(
-              fontWeight: FontWeight.bold,
-              height: hght,
-              letterSpacing: lSpacing,
-              wordSpacing: wSpacing)),
-      h2: GoogleFonts.lexend(
-          textStyle: theme.titleStyle.copyWith(
-              fontSize: 16,
-              height: hght,
-              letterSpacing: lSpacing,
-              wordSpacing: wSpacing)),
-      h3: GoogleFonts.lexend(
-          textStyle: theme.titleStyle.copyWith(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              height: hght,
-              letterSpacing: lSpacing,
-              wordSpacing: wSpacing)),
-      listBullet:
-          GoogleFonts.lexend(textStyle: theme.bodyStyle.copyWith(height: hght)),
-      blockSpacing: 10.0,
+      p: baseTextStyle,
+      strong: baseTextStyle.copyWith(fontWeight: FontWeight.bold),
+      h2: baseTextStyle.copyWith(fontSize: 16),
+      h3: baseTextStyle.copyWith(fontSize: 14, fontWeight: FontWeight.bold),
+      listBullet: baseTextStyle,
+      blockSpacing: 12.0,
     );
   }
 }
@@ -1679,7 +2034,6 @@ class _ConfettiPainter extends CustomPainter {
       final paint = Paint()
         ..color = p.color.withValues(alpha: opacity)
         ..style = PaintingStyle.fill;
-
       canvas.save();
       canvas.translate(x, y);
       canvas.rotate(p.rotation + progress * 5);
@@ -1696,7 +2050,7 @@ class _ConfettiPainter extends CustomPainter {
   bool shouldRepaint(_ConfettiPainter old) => old.progress != progress;
 }
 
-// ── ADHD Highlight Builder ────────────────────────────────────────────────────
+// ── ADHD Highlight Builder (used in chat bubbles) ─────────────────────────────
 class _AdhdHighlightBuilder extends MarkdownElementBuilder {
   final bool isADHD;
   _AdhdHighlightBuilder(this.isADHD);
@@ -1729,5 +2083,104 @@ class _AdhdHighlightBuilder extends MarkdownElementBuilder {
     return Text(text.text,
         style: (preferredStyle ?? const TextStyle())
             .copyWith(fontWeight: FontWeight.bold));
+  }
+}
+
+// ── General Highlight Builder (used in neuro cards) ───────────────────────────
+class _HighlightBuilder extends MarkdownElementBuilder {
+  final UserTraits traits;
+  _HighlightBuilder(this.traits);
+
+  @override
+  Widget visitText(text, TextStyle? preferredStyle) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 2.0),
+      decoration: BoxDecoration(
+        color: Colors.yellow.withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(4.0),
+      ),
+      child: Text(
+        text.text,
+        style: (preferredStyle ?? const TextStyle())
+            .copyWith(fontWeight: FontWeight.bold),
+      ),
+    );
+  }
+}
+
+// ── Typewriter Markdown ───────────────────────────────────────────────────────
+class TypewriterMarkdown extends StatefulWidget {
+  final String data;
+  final MarkdownStyleSheet? styleSheet;
+  final Map<String, MarkdownElementBuilder>? builders;
+
+  const TypewriterMarkdown({
+    super.key,
+    required this.data,
+    this.styleSheet,
+    this.builders,
+  });
+
+  @override
+  State<TypewriterMarkdown> createState() => _TypewriterMarkdownState();
+}
+
+class _TypewriterMarkdownState extends State<TypewriterMarkdown> {
+  String _displayedText = '';
+  int _currentIndex = 0;
+  bool _isTyping = true;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _startTyping();
+  }
+
+  @override
+  void didUpdateWidget(TypewriterMarkdown oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.data != widget.data) {
+      _timer?.cancel();
+      _displayedText = '';
+      _currentIndex = 0;
+      _isTyping = true;
+      _startTyping();
+    }
+  }
+
+  void _startTyping() {
+    _timer = Timer.periodic(const Duration(milliseconds: 15), (timer) {
+      if (!mounted || !_isTyping || _currentIndex >= widget.data.length - 1) {
+        timer.cancel();
+        if (mounted && _isTyping) {
+          setState(() {
+            _isTyping = false;
+            _displayedText = widget.data;
+          });
+        }
+        return;
+      }
+      setState(() {
+        _currentIndex++;
+        _displayedText = widget.data.substring(0, _currentIndex);
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _isTyping = false;
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MarkdownBody(
+      data: _displayedText,
+      styleSheet: widget.styleSheet,
+      builders: widget.builders ?? const {},
+    );
   }
 }

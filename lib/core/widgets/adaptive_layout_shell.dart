@@ -1,7 +1,11 @@
 import 'package:adapted/core/theme/dynamic_theme.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+
+import '../utils/logger.dart';
 
 class AdaptiveLayoutShell extends StatefulWidget {
   final Widget child;
@@ -85,7 +89,7 @@ class _AdaptiveLayoutShellState extends State<AdaptiveLayoutShell> {
             backgroundColor: theme.backgroundColor,
             body: Row(
               children: [
-                _buildSidebar(context, theme, currentRoute, isVibrant),
+                _buildSidebar(context, theme, currentRoute, user, isVibrant),
                 Expanded(
                   child: Column(
                     children: [
@@ -102,15 +106,14 @@ class _AdaptiveLayoutShellState extends State<AdaptiveLayoutShell> {
         return Scaffold(
           backgroundColor: theme.backgroundColor,
           appBar: AppBar(
-            // ← FIXED: always backgroundColor, no fill in any mode
             backgroundColor: theme.backgroundColor,
             elevation: 0,
-            scrolledUnderElevation: 0, // ← prevents blue tint on scroll
+            scrolledUnderElevation: 0,
             surfaceTintColor: Colors.transparent,
             iconTheme: IconThemeData(color: theme.onSurfaceTextColor),
             title: Text(
               _getPageTitle(currentRoute),
-              style: theme.titleStyle, // ← always uses theme text color
+              style: theme.titleStyle,
             ),
             actions: [
               IconButton(
@@ -129,7 +132,7 @@ class _AdaptiveLayoutShellState extends State<AdaptiveLayoutShell> {
           ),
           bottomNavigationBar:
               _buildBottomNav(context, theme, currentRoute, isVibrant),
-          drawer: _buildDrawer(context, theme, currentRoute, isVibrant),
+          drawer: _buildDrawer(context, theme, currentRoute, user, isVibrant),
           body: widget.child,
         );
       },
@@ -138,7 +141,7 @@ class _AdaptiveLayoutShellState extends State<AdaptiveLayoutShell> {
 
   // ── Sidebar (Desktop) ─────────────────────────────────────────────────────
   Widget _buildSidebar(BuildContext context, DynamicTheme theme,
-      String currentRoute, bool isVibrant) {
+      String currentRoute, User? user, bool isVibrant) {
     final sidebarBg =
         isVibrant ? _darken(theme.primaryColor, 0.3) : theme.backgroundColor;
     final sidebarBorder = isVibrant
@@ -223,6 +226,7 @@ class _AdaptiveLayoutShellState extends State<AdaptiveLayoutShell> {
                 currentRoute,
                 isVibrant: isVibrant,
               )),
+          _buildRecentChatsTile(context, theme, user, isVibrant: isVibrant),
           const Spacer(),
           _buildNavItem(context, theme, Icons.settings_outlined, Icons.settings,
               "Settings", '/settings', currentRoute,
@@ -292,7 +296,7 @@ class _AdaptiveLayoutShellState extends State<AdaptiveLayoutShell> {
 
   // ── Drawer (Mobile) ───────────────────────────────────────────────────────
   Widget _buildDrawer(BuildContext context, DynamicTheme theme,
-      String currentRoute, bool isVibrant) {
+      String currentRoute, User? user, bool isVibrant) {
     return Drawer(
       backgroundColor:
           isVibrant ? _darken(theme.primaryColor, 0.3) : theme.backgroundColor,
@@ -339,10 +343,115 @@ class _AdaptiveLayoutShellState extends State<AdaptiveLayoutShell> {
                 isDrawer: true,
                 isVibrant: isVibrant,
               )),
+          _buildRecentChatsTile(context, theme, user,
+              isDrawer: true, isVibrant: isVibrant),
           Divider(color: isVibrant ? Colors.white24 : null),
           _buildNavItem(context, theme, Icons.settings_outlined, Icons.settings,
               "Settings", '/settings', currentRoute,
               isDrawer: true, isVibrant: isVibrant),
+        ],
+      ),
+    );
+  }
+
+  // ── Recent Chats Tile (from other branch) ─────────────────────────────────
+  Widget _buildRecentChatsTile(
+      BuildContext context, DynamicTheme theme, User? user,
+      {bool isDrawer = false, bool isVibrant = false}) {
+    final showLabel = _isSidebarExpanded || isDrawer;
+    final iconColor =
+        isVibrant ? Colors.white.withValues(alpha: 0.5) : Colors.grey[600];
+    final textColor =
+        isVibrant ? Colors.white.withValues(alpha: 0.7) : Colors.grey[800];
+
+    if (!showLabel) {
+      return ListTile(
+        leading: Icon(Icons.chat_bubble_outline, color: iconColor),
+        onTap: () => setState(() => _isSidebarExpanded = true),
+        contentPadding: const EdgeInsets.only(left: 24),
+      );
+    }
+
+    if (user == null) return const SizedBox.shrink();
+
+    return Theme(
+      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+      child: ExpansionTile(
+        leading: Icon(Icons.chat_bubble_outline, color: iconColor),
+        title: Text(
+          "Recent Chats",
+          style: theme.bodyStyle.copyWith(
+            color: textColor,
+            fontWeight: FontWeight.normal,
+          ),
+        ),
+        tilePadding: const EdgeInsets.symmetric(horizontal: 16),
+        childrenPadding: const EdgeInsets.only(left: 16),
+        children: [
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('sessions')
+                .where('userId', isEqualTo: user.uid)
+                .orderBy('lastActive', descending: true)
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                AppLogger.error("Recent Chats Stream Error",
+                    error: snapshot.error);
+                return Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Text("Error loading chats.",
+                      style: TextStyle(color: Colors.red[300], fontSize: 10)),
+                );
+              }
+              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                return Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Text("No recent chats",
+                      style: TextStyle(color: textColor, fontSize: 12)),
+                );
+              }
+
+              return Column(
+                children: snapshot.data!.docs.map((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  final title = data['title'] ?? 'Chat Session';
+                  final timestamp = data['lastActive'] as Timestamp?;
+                  final subtitleStr = timestamp != null
+                      ? DateFormat('MMMM dd, yyyy – hh:mm a')
+                          .format(timestamp.toDate())
+                      : '';
+
+                  return ListTile(
+                    dense: true,
+                    contentPadding: const EdgeInsets.only(left: 40, right: 16),
+                    title: Text(
+                      title,
+                      style: TextStyle(
+                          fontSize: 13,
+                          color: textColor,
+                          fontWeight: FontWeight.w500),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    subtitle: subtitleStr.isNotEmpty
+                        ? Text(subtitleStr,
+                            style: TextStyle(
+                                fontSize: 10,
+                                color: isVibrant
+                                    ? Colors.white38
+                                    : Colors.grey[500]))
+                        : null,
+                    onTap: () {
+                      if (isDrawer) Navigator.pop(context);
+                      Navigator.pushReplacementNamed(context, '/dashboard',
+                          arguments: {'sessionId': doc.id});
+                    },
+                  );
+                }).toList(),
+              );
+            },
+          ),
         ],
       ),
     );
@@ -419,7 +528,6 @@ class _AdaptiveLayoutShellState extends State<AdaptiveLayoutShell> {
     return Container(
       height: 60,
       padding: const EdgeInsets.symmetric(horizontal: 24),
-      // ← FIXED: no border, no fill — completely transparent strip
       decoration: BoxDecoration(
         color: theme.backgroundColor,
       ),

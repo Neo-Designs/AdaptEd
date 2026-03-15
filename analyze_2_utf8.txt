@@ -28,11 +28,8 @@ warning - Unnecessary cast - lib\features\dashboard\dashboard_screen.dart:537:25
    info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\features\dashboard\dashboard_screen.dart:547:48 - use_build_context_synchronously
 warning - The value of the local variable 'materialId' isn't used - lib\features\dashboard\dashboard_screen.dart:560:13 - unused_local_variable
    info - Don't use 'BuildContext's across async gaps - lib\features\dashboard\dashboard_screen.dart:599:28 - use_build_context_synchronously
-  error - Undefined class 'NeuroTraits' - lib\features\dashboard\dashboard_screen.dart:736:9 - undefined_class
-   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\dashboard\dashboard_screen.dart:745:30 - deprecated_member_use
-  error - Expected a method, getter, setter or operator declaration - lib\features\dashboard\dashboard_screen.dart:757:1 - expected_executable
-   info - Parameter 'key' could be a super parameter - lib\features\dashboard\dashboard_screen.dart:764:9 - use_super_parameters
-  error - The argument type 'Map<String, MarkdownElementBuilder>?' can't be assigned to the parameter type 'Map<String, MarkdownElementBuilder>'.  - lib\features\dashboard\dashboard_screen.dart:831:17 - argument_type_not_assignable
+  error - Undefined class 'UserTraits' - lib\features\dashboard\dashboard_screen.dart:736:9 - undefined_class
+   info - Parameter 'key' could be a super parameter - lib\features\dashboard\dashboard_screen.dart:763:9 - use_super_parameters
    info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\features\library\library_screen.dart:52:28 - use_build_context_synchronously
 warning - Unnecessary cast - lib\features\library\library_screen.dart:71:19 - unnecessary_cast
 warning - Unnecessary cast - lib\features\library\library_screen.dart:72:25 - unnecessary_cast

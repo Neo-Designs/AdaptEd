@@ -23,44 +23,42 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text("Settings", style: theme.titleStyle.copyWith(fontSize: 24)),
+            Text('Settings', style: theme.titleStyle.copyWith(fontSize: 24)),
             const SizedBox(height: 24),
 
             // ── Appearance ──────────────────────────────────────────────────
-            _buildSectionHeader(theme, "Appearance"),
+            _buildSectionHeader(theme, 'Appearance'),
             AdaptedCard(
               child: Column(
                 children: [
                   _buildSwitchTile(
                     theme,
-                    "Dyslexic Font",
-                    "Easier to read font with wider spacing",
+                    'Dyslexic Font',
+                    'Easier to read font with wider spacing',
                     theme.useDyslexicFont,
                     (_) => context.read<DynamicTheme>().toggleDyslexicFont(),
                   ),
                   _divider(theme),
                   _buildSwitchTile(
                     theme,
-                    "Focus Mode",
-                    "Reduce distractions and visual noise",
+                    'Focus Mode',
+                    'Reduce distractions and visual noise',
                     theme.focusMode,
                     (_) => context.read<DynamicTheme>().toggleFocusMode(),
                   ),
                   _divider(theme),
-                  // ← NEW: High Contrast
                   _buildSwitchTile(
                     theme,
-                    "High Contrast",
-                    "Maximum text/background contrast",
+                    'High Contrast',
+                    'Maximum text/background contrast',
                     theme.highContrast,
                     (_) => context.read<DynamicTheme>().toggleHighContrast(),
                   ),
                   _divider(theme),
-                  // ← NEW: Reading Ruler
                   _buildSwitchTile(
                     theme,
-                    "Reading Ruler",
-                    "Horizontal guide line for dyslexic users",
+                    'Reading Ruler',
+                    'Horizontal guide line for dyslexic users',
                     theme.readingRuler,
                     (_) => context.read<DynamicTheme>().toggleReadingRuler(),
                   ),
@@ -71,14 +69,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 24),
 
             // ── Font Size ───────────────────────────────────────────────────
-            _buildSectionHeader(theme, "Font Size"),
+            _buildSectionHeader(theme, 'Font Size'),
             AdaptedCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
-                      Text("A", style: theme.bodyStyle.copyWith(fontSize: 12)),
+                      Text('A', style: theme.bodyStyle.copyWith(fontSize: 12)),
                       Expanded(
                         child: Slider(
                           value: theme.fontSizeScale,
@@ -93,7 +91,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           },
                         ),
                       ),
-                      Text("A", style: theme.bodyStyle.copyWith(fontSize: 22)),
+                      Text('A', style: theme.bodyStyle.copyWith(fontSize: 22)),
                     ],
                   ),
                   Center(
@@ -115,7 +113,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  // Preview text
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
@@ -123,7 +120,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
-                      "The quick brown fox jumps over the lazy dog.",
+                      'The quick brown fox jumps over the lazy dog.',
                       style: theme.bodyStyle,
                     ),
                   ),
@@ -133,13 +130,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
             const SizedBox(height: 24),
 
-            // ── Dark Mode ───────────────────────────────────────────────────
-            _buildSectionHeader(theme, "Display"),
+            // ── Display ─────────────────────────────────────────────────────
+            _buildSectionHeader(theme, 'Display'),
             AdaptedCard(
               child: _buildSwitchTile(
                 theme,
-                "Dark Mode",
-                "Switch between light and dark appearance",
+                'Dark Mode',
+                'Switch between light and dark appearance',
                 theme.isDarkMode,
                 (_) => context.read<DynamicTheme>().toggleDarkMode(),
               ),
@@ -148,13 +145,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 24),
 
             // ── Account ─────────────────────────────────────────────────────
-            _buildSectionHeader(theme, "Account"),
+            _buildSectionHeader(theme, 'Account'),
             AdaptedCard(
               child: Column(
                 children: [
                   ListTile(
                     leading: Icon(Icons.person, color: theme.primaryColor),
-                    title: Text("Profile Settings", style: theme.bodyStyle),
+                    title: Text('Profile Settings', style: theme.bodyStyle),
                     trailing: Icon(Icons.chevron_right,
                         color: theme.onSurfaceTextColor.withValues(alpha: 0.4)),
                     onTap: () => Navigator.pushNamed(context, '/profile'),
@@ -162,7 +159,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   _divider(theme),
                   ListTile(
                     leading: const Icon(Icons.logout, color: Colors.red),
-                    title: Text("Log Out",
+                    title: Text('Log Out',
                         style: theme.bodyStyle.copyWith(color: Colors.red)),
                     onTap: () async {
                       await FirebaseAuth.instance.signOut();

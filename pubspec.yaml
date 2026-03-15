@@ -10,7 +10,7 @@ dependencies:
   flutter:
     sdk: flutter
   provider: ^6.0.0
-  google_fonts: ^6.1.0
+  google_fonts: ^8.0.2
   cupertino_icons: ^1.0.2
   firebase_core: ^4.4.0
   cloud_firestore: ^6.1.2
@@ -23,24 +23,34 @@ dependencies:
   fl_chart: ^1.1.1
   http: ^1.6.0
   syncfusion_flutter_pdf: ^32.2.9
-  flutter_dotenv: ^5.1.0
+  flutter_dotenv: ^6.0.0
   speech_to_text: ^7.0.0
   flutter_markdown: ^0.7.4
   read_pdf_text: ^0.3.1
   google_generative_ai: ^0.4.7
   intl: ^0.20.2
+  animated_text_kit: ^4.3.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^2.0.0
+  flutter_lints: ^6.0.0
 
 flutter:
   uses-material-design: true
 
   assets:
     - .env
+    - assets/fonts/
 
-
-
-
+  fonts:
+    - family: OpenDyslexic
+      fonts:
+        - asset: assets/fonts/OpenDyslexic-Regular.ttf
+        - asset: assets/fonts/OpenDyslexic-Italic.ttf
+          style: italic
+        - asset: assets/fonts/OpenDyslexic-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/OpenDyslexic-BoldItalic.ttf
+          weight: 700
+          style: italic
