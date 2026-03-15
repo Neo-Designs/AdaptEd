@@ -30,6 +30,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final FirestoreService _firestoreService = FirestoreService();
   final FlutterTts _flutterTts = FlutterTts();
   final stt.SpeechToText _speech = stt.SpeechToText();
+  final GamificationService _gamificationService = GamificationService();
 
   // Chat state
   List<Map<String, dynamic>> _messages = [];
@@ -47,6 +48,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _initTts();
     _initStt();
     _loadChatHistory();
+
+    _gamificationService.handleEvent('daily_login');
   }
 
   void _initTts() async {
@@ -187,51 +190,69 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
     );
   }
-  
+
   Widget _buildProfileHeader(DynamicTheme theme, String uid) {
     return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseFirestore.instance.collection('users').doc(uid).snapshots(),
+      stream: _gamificationService.getUserStats(), // Use the service stream
       builder: (context, snapshot) {
         if (!snapshot.hasData) return const SizedBox.shrink();
         final data = snapshot.data!.data() as Map<String, dynamic>?;
         if (data == null) return const SizedBox.shrink();
 
-        final xp = data['xp'] ?? 0;
+        // Using your new document variables
+        final totalXP = data['total_xp'] ?? 20;
         final level = data['level'] ?? 1;
 
+        // Logic: XP needed for the next level is 500.
+        // This calculates the percentage of the current 500-XP chunk.
+        double progressInLevel = (totalXP % 500) / 500.0;
+
         return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
           decoration: BoxDecoration(
-            color: theme.cardColor.withOpacity(0.5),
-            borderRadius: BorderRadius.circular(12)
+            color: theme.cardColor,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4)],
           ),
-          margin: const EdgeInsets.only(bottom: 8),
+          margin: const EdgeInsets.only(bottom: 12),
           child: Row(
             children: [
-               CircleAvatar(
-                 backgroundColor: theme.primaryColor, 
-                 radius: 16,
-                 child: Text(level.toString(), style: const TextStyle(color: Colors.white, fontSize: 12))
-               ),
-               const SizedBox(width: 12),
-               Expanded(
-                 child: Column(
-                   crossAxisAlignment: CrossAxisAlignment.start,
-                   children: [
-                     Text("Level $level • $xp XP", style: theme.titleStyle.copyWith(fontSize: 14)),
-                     LinearProgressIndicator(value: (xp % 500) / 500, backgroundColor: Colors.grey[300], color: theme.secondaryColor),
-                   ],
-                 ),
-               ),
-               IconButton(
-                 icon: const Icon(Icons.rate_review_outlined, size: 20),
-                 tooltip: "Leave Review",
-                 onPressed: _showReviewDialog,
-               )
+              CircleAvatar(
+                backgroundColor: theme.primaryColor,
+                radius: 20,
+                child: Text(level.toString(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text("Level $level", style: theme.titleStyle.copyWith(fontSize: 14)),
+                        Text("$totalXP Total XP", style: theme.bodyStyle.copyWith(fontSize: 12, color: Colors.grey)),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: LinearProgressIndicator(
+                        value: progressInLevel.clamp(0.0, 1.0),
+                        minHeight: 10,
+                        backgroundColor: Colors.grey[200],
+                        valueColor: AlwaysStoppedAnimation<Color>(theme.primaryColor),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text("${(totalXP % 500)} / 500 XP to next level", style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                  ],
+                ),
+              ),
             ],
           ),
         );
-      }
+      },
     );
   }
 
@@ -503,6 +524,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               userTraits: traits
            );
            _currentMaterialId = materialId;
+
+           await _gamificationService.handleEvent('revision');
 
            await _firestoreService.saveChatMessage('ai', "Here is the summary:\n\n$summary");
            await _firestoreService.saveChatMessage('system_action', 'prompt_upload_or_quiz');

@@ -1,6 +1,8 @@
+import 'package:adapted/core/widgets/celebration_dialog.dart';
 import 'package:flutter/material.dart';
 import '../../core/services/ai_service.dart';
 import '../../core/services/gamification_service.dart';
+import '../../core/widgets/celebration_dialog.dart';
 
 class AssessmentScreen extends StatefulWidget {
   final String? content; // New: Pass content to generate quiz from
@@ -132,8 +134,21 @@ class _AssessmentScreenState extends State<AssessmentScreen> {
                               _score = correctCount;
                             });
 
-                            // Award XP: 10 per correct answer
-                            await _gamificationService.awardXP(correctCount * GamificationService.xpPerCorrectAnswer);
+                            double percentage = (correctCount / _questions.length) * 100;
+
+                            await _gamificationService.handleEvent(
+                                'revision',
+                              quizScore: percentage
+                            );
+
+                            if (mounted && percentage == 100) {
+                              showDialog(
+                                context: context,
+                                barrierDismissible: false,
+                                builder: (context) =>
+                                const CelebrationDialog(badgeName: "All Star"),
+                              );
+                            }
 
                             if (mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(

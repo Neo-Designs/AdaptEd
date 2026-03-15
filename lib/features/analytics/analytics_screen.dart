@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:intl/intl.dart'; 
+import 'package:intl/intl.dart';
 import '../../core/theme/dynamic_theme.dart';
 import '../../core/services/gamification_service.dart';
 import '../../core/services/firestore_service.dart';
@@ -30,14 +30,19 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
 
     return Scaffold(
       backgroundColor: theme.backgroundColor,
+      appBar: AppBar(
+        title: const Text("My Learning Journey"),
+        backgroundColor: theme.backgroundColor,
+        elevation: 0,
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text("Your Progress", style: theme.titleStyle.copyWith(fontSize: 24)),
-            const SizedBox(height: 16),
             _buildStatsCard(theme),
+            const SizedBox(height: 24),
+            _buildStreakSection(theme),
             const SizedBox(height: 24),
             Text("Recent Quizzes", style: theme.titleStyle.copyWith(fontSize: 20)),
             const SizedBox(height: 12),
@@ -53,16 +58,16 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   }
 
   Widget _buildStatsCard(DynamicTheme theme) {
-     return StreamBuilder<DocumentSnapshot>(
+    return StreamBuilder<DocumentSnapshot>(
         stream: _userStatsStream,
         builder: (context, snapshot) {
           final data = snapshot.data?.data() as Map<String, dynamic>?;
           final level = data?['level'] ?? 1;
-          final xp = data?['xp'] ?? 0;
-          
+          final totalXp = data?['total_xp'] ?? 20; // UPDATED to match Point System
+
           return Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(32),
+            padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [theme.primaryColor, theme.secondaryColor],
@@ -70,44 +75,51 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                 end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(24),
-              boxShadow: [
-                BoxShadow(
-                  color: theme.primaryColor.withOpacity(0.3),
-                  blurRadius: 20,
-                  offset: const Offset(0, 10),
-                )
-              ],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  "Level $level",
-                  style: theme.titleStyle.copyWith(color: Colors.white, fontSize: 32),
+                Text("Level $level", style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold)),
+                Text("$totalXp Total XP Earned", style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 16)),
+                const SizedBox(height: 20),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: LinearProgressIndicator(
+                    value: (totalXp % 500) / 500,
+                    minHeight: 10,
+                    backgroundColor: Colors.white24,
+                    valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
                 ),
                 const SizedBox(height: 8),
-                Text(
-                  "$xp XP Earned",
-                  style: theme.bodyStyle.copyWith(color: Colors.white.withOpacity(0.9), fontSize: 18),
-                ),
-                const SizedBox(height: 24),
-                LinearProgressIndicator(
-                  value: (xp % 500) / 500, 
-                  backgroundColor: Colors.white24,
-                  valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
-                ),
-                const SizedBox(height: 8),
-                 Text(
-                  "${500 - (xp % 500)} XP to next level",
-                  style: theme.bodyStyle.copyWith(color: Colors.white70, fontSize: 12),
-                ),
+                Text("${500 - (totalXp % 500)} XP to next level", style: const TextStyle(color: Colors.white70, fontSize: 12)),
               ],
             ),
           );
         }
-      );
+    );
   }
-  
+
+  Widget _buildStreakSection(DynamicTheme theme) {
+    return StreamBuilder<DocumentSnapshot>(
+      stream: _userStatsStream,
+      builder: (context, snapshot) {
+        final data = snapshot.data?.data() as Map<String, dynamic>?;
+        final streak = data?['consecutive_login_days'] ?? 0;
+
+        return Card(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: ListTile(
+            leading: const Icon(Icons.local_fire_department, color: Colors.orange, size: 32),
+            title: Text("$streak Day Streak!", style: const TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: Text(streak >= 7 ? "You've earned the 'All In' Badge!" : "Keep it up for 7 days to get a badge!"),
+          ),
+        );
+      },
+    );
+  }
+
+  // Quiz History and Activity Log remain the same, just ensured they use correct padding
   Widget _buildQuizHistory(DynamicTheme theme) {
     return StreamBuilder<QuerySnapshot>(
       stream: _firestoreService.getQuizResults(),
@@ -122,17 +134,17 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           itemBuilder: (context, index) {
             final data = snapshot.data!.docs[index].data() as Map<String, dynamic>;
             final date = (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now();
-            
+
             return Card(
               margin: const EdgeInsets.only(bottom: 8),
               child: ListTile(
                 leading: CircleAvatar(
-                  backgroundColor: theme.secondaryColor,
-                  child: Text("${data['score']}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black)),
+                  backgroundColor: theme.primaryColor.withOpacity(0.1),
+                  child: Text("${data['score']}", style: TextStyle(fontWeight: FontWeight.bold, color: theme.primaryColor)),
                 ),
-                title: Text("Quiz Score: ${data['score']}/${data['total']}"),
-                subtitle: Text("Difficulty: ${data['difficulty']} • +${data['xpEarned']} XP"),
-                trailing: Text(DateFormat('MM/dd').format(date)),
+                title: Text("Score: ${data['score']}/${data['total']}"),
+                subtitle: Text(DateFormat('MMM dd, yyyy').format(date)),
+                trailing: const Icon(Icons.chevron_right),
               ),
             );
           },
@@ -146,23 +158,26 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
       stream: _firestoreService.getActivityLogs(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-        if (snapshot.data!.docs.isEmpty) return const Text("No recent activity.");
-
-        return ListView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: snapshot.data!.docs.length,
-          itemBuilder: (context, index) {
-            final data = snapshot.data!.docs[index].data() as Map<String, dynamic>;
-            final date = (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now();
-            
-            return ListTile(
-              dense: true,
-              leading: Icon(Icons.history, size: 16, color: Colors.grey[600]),
-              title: Text(data['description'] ?? 'Activity'),
-              trailing: Text(DateFormat('HH:mm').format(date), style: const TextStyle(fontSize: 12, color: Colors.grey)),
-            );
-          },
+        return Container(
+          decoration: BoxDecoration(
+            color: theme.cardColor,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: snapshot.data!.docs.length,
+            itemBuilder: (context, index) {
+              final data = snapshot.data!.docs[index].data() as Map<String, dynamic>;
+              final date = (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now();
+              return ListTile(
+                dense: true,
+                leading: const Icon(Icons.check_circle_outline, size: 18, color: Colors.green),
+                title: Text(data['description'] ?? 'Activity'),
+                trailing: Text(DateFormat('HH:mm').format(date)),
+              );
+            },
+          ),
         );
       },
     );

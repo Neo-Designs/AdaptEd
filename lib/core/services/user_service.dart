@@ -1,5 +1,7 @@
+import 'package:adapted/core/services/firestore_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import '../../features/screening/scoring_engine.dart';
 import '../utils/logger.dart';
@@ -21,11 +23,6 @@ class UserService extends ChangeNotifier {
     _auth.authStateChanges().listen((user) {
       if (user != null) {
         _loadUserProfile();
-      } else {
-        _currentTraits = null;
-        _role = 'learner';
-        _isInitialized = false;
-        notifyListeners();
       }
     });
   }
@@ -43,10 +40,11 @@ class UserService extends ChangeNotifier {
         }
         _role = data['role'] ?? 'learner';
       }
+    } catch (e) {
+      AppLogger.error('Failed to load user profile', error: e);
+    } finally {
       _isInitialized = true;
       notifyListeners();
-    } catch (e, stack) {
-      AppLogger.error('Failed to load user profile', tag: 'UserService', error: e, stackTrace: stack);
     }
   }
 

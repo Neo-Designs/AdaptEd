@@ -87,6 +87,7 @@ class _AdaptiveLayoutShellState extends State<AdaptiveLayoutShell> {
           _buildNavItem(context, theme, Icons.analytics_outlined, "Analytics", '/analytics', currentRoute),
           _buildNavItem(context, theme, Icons.person_outline, "Profile", '/profile', currentRoute),
           _buildNavItem(context, theme, Icons.help_outline, "FAQs", '/faqs', currentRoute),
+          _buildNavItem(context, theme, Icons.play_circle_outline, "App Tutorial" , '/app tutorial', currentRoute),
           const Spacer(),
           _buildNavItem(context, theme, Icons.settings_outlined, "Settings", '/settings', currentRoute),
           IconButton(
@@ -124,6 +125,7 @@ class _AdaptiveLayoutShellState extends State<AdaptiveLayoutShell> {
           _buildNavItem(context, theme, Icons.analytics_outlined, "Analytics", '/analytics', currentRoute, isDrawer: true),
           _buildNavItem(context, theme, Icons.person_outline, "Profile", '/profile', currentRoute, isDrawer: true),
           _buildNavItem(context, theme, Icons.help_outline, "FAQs", '/faqs', currentRoute, isDrawer: true),
+          _buildNavItem(context, theme, Icons.play_circle_outline, "App Tutorial" , '/app tutorial', currentRoute, isDrawer: true),
           const Divider(),
           _buildNavItem(context, theme, Icons.settings_outlined, "Settings", '/settings', currentRoute, isDrawer: true),
         ],

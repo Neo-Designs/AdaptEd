@@ -16,7 +16,6 @@ class QuizScreen extends StatefulWidget {
 class _QuizScreenState extends State<QuizScreen> {
   final PageController _pageController = PageController();
   final ScoringEngine _engine = ScoringEngine();
-  final UserService _userService = UserService();
   int _currentIndex = 0;
   bool _isAnalyzing = false;
 
@@ -43,34 +42,48 @@ class _QuizScreenState extends State<QuizScreen> {
       _isAnalyzing = true;
     });
 
+    try{
+
+    final userService = Provider.of<UserService>(context, listen: false);
+
     final traits = _engine.calculateProfile();
     
-    // Save to Firestore
-    await _userService.saveUserProfile(traits);
-    
-    // Update local theme
-    if (mounted) {
-       Provider.of<DynamicTheme>(context, listen: false).setTraits(traits);
-       
-       // Generate description based on traits (Mock logic for now)
-       String description = "You have a unique way of seeing the world! ";
-       if (traits.isAutistic) description += "You likely value structure and clarity. ";
-       if (traits.isADHD) description += "Your mind moves fast and makes amazing connections. ";
-       if (traits.isDyslexic) description += "You may prefer auditory learning and visual storytelling. ";
-       if (traits.isDyspraxic) description += "You learn best by doing and experiencing. ";
-       
-       if (description == "You have a unique way of seeing the world! ") {
-         description += "You are a versatile learner who adapts to many situations.";
-       }
 
-       Navigator.of(context).pushReplacement(
-         MaterialPageRoute(
-           builder: (context) => QuizResultScreen(
-             profileName: traits.learningProfileName,
-             description: description,
-           ),
-         ),
-       );
+
+      await userService.saveUserProfile(traits);
+
+      if (mounted) {
+        Provider.of<DynamicTheme>(context, listen: false).setTraits(traits);
+
+        // Generate description based on traits (Mock logic for now)
+        String description = "You have a unique way of seeing the world! ";
+        if (traits.isAutistic) description += "You likely value structure and clarity. ";
+        if (traits.isADHD) description += "Your mind moves fast and makes amazing connections. ";
+        if (traits.isDyslexic) description += "You may prefer auditory learning and visual storytelling. ";
+        if (traits.isDyspraxic) description += "You learn best by doing and experiencing. ";
+
+        if (description == "You have a unique way of seeing the world! ") {
+          description += "You are a versatile learner who adapts to many situations.";
+        }
+
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => QuizResultScreen(
+              profileName: traits.learningProfileName,
+              description: description,
+            ),
+          ),
+        );
+
+      }
+    } catch (e) {
+      if (mounted) {
+      setState(() => _isAnalyzing = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Failed to save profile. Please check your internet.")),
+      );
+
+      }
     }
   }
 

@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:firebase_auth/firebase_auth.dart' hide EmailAuthProvider;
 import 'package:firebase_ui_auth/firebase_ui_auth.dart' hide ProfileScreen;
+import 'package:showcaseview/showcaseview.dart';
+
 
 import 'firebase_options.dart';
 import 'core/theme/dynamic_theme.dart';
@@ -27,30 +29,39 @@ import 'features/faq/faq_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // Initialize Global Error Handling
+
   setupGlobalErrorHandling();
 
   try {
     await dotenv.load(fileName: ".env");
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
-    AppLogger.info('App initialization successful');
-  } catch (e, stack) {
-    AppLogger.error('App initialization failed', error: e, stackTrace: stack);
+    AppLogger.info('Environment variables loaded successfully');
+  } catch (e) {
+    AppLogger.error('Warning: .env file missing or not in pubspec.yaml. Using Defaults.');
   }
 
+  try {
+    await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+    );
+    AppLogger.info('Firebase initialization Successful');
+  } catch (e) {
+    AppLogger.error('Firebase failed: $e');
+
+  }
+
+
+
   runApp(
-    MultiProvider(
-      providers: [
-        ChangeNotifierProvider(create: (_) => DynamicTheme()),
-        ChangeNotifierProvider(create: (_) => UserService()),
-        Provider(create: (_) => AIService()),
-        Provider(create: (_) => FirestoreService()),
-      ],
-      child: const ErrorBoundary(
-        child: AdaptEdApp(),
+    ShowCaseWidget(
+      builder: (context) => MultiProvider(
+        providers: [
+          ChangeNotifierProvider(create: (_) => DynamicTheme()),
+          // We go back to creating these independently
+          Provider(create: (_) => FirestoreService()),
+          Provider(create: (_) => AIService()),
+          ChangeNotifierProvider(create: (_) => UserService()),
+        ],
+        child: const ErrorBoundary(child: AdaptEdApp()),
       ),
     ),
   );
