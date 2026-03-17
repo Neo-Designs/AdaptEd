@@ -1,11 +1,12 @@
 import 'dart:typed_data';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
+import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
-import 'dart:convert';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/theme/dynamic_theme.dart';
@@ -35,7 +36,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
     setState(() => _isUploading = true);
 
     try {
-      // ── 1. Pick file — withData: true gives bytes on ALL platforms (web + native)
       final FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['pdf'],
@@ -54,12 +54,10 @@ class _LibraryScreenState extends State<LibraryScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Processing $fileName — generating summary…")));
 
-      // ── 2. Concurrent Execution: Storage Upload + Text Extraction
       String fileUrl = '';
       String extractedText = '';
       
       try {
-        // Run both operations simultaneously
         final results = await Future.wait([
           _firestoreService.uploadPdfToStorage(bytes, fileName, user.uid),
           Future(() {
@@ -73,13 +71,10 @@ class _LibraryScreenState extends State<LibraryScreen> {
         fileUrl = results[0];
         extractedText = results[1];
       } catch (e) {
-        extractedText = ''; // AI guard handles empty/short text with a user-facing message
+        extractedText = '';
       }
 
-      // ── 3. Trait-based adaptive AI summary (RAG trigger) ──────────────────
       final traits = theme.traits;
-      // generateAdaptiveSummary handles the < 10 char case internally and
-      // returns the formatted scanned-PDF error message, so we always call it.
       final String summary = await _aiService.generateAdaptiveSummary(
         extractedText,
         isADHD: traits.isADHD,
@@ -87,7 +82,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
         isDyslexic: traits.isDyslexic,
       );
 
-      // ── 4. One-shot Firestore save (text + fileUrl) ────────────────
       await _firestoreService.saveLearningMaterial(
         title: fileName,
         summary: summary,
@@ -180,6 +174,26 @@ class _LibraryScreenState extends State<LibraryScreen> {
                                   Row(
                                      mainAxisAlignment: MainAxisAlignment.end,
                                      children: [
+                                        TextButton.icon(
+                                           onPressed: () {
+                                              if (data['fileUrl'] != null) {
+                                                Navigator.push(
+                                                  context,
+                                                  MaterialPageRoute(
+                                                    builder: (context) => PdfViewerScreen(
+                                                      title: data['title'] ?? 'Document',
+                                                      url: data['fileUrl'],
+                                                      theme: theme,
+                                                    ),
+                                                  ),
+                                                );
+                                              }
+                                           },
+                                           icon: const Icon(Icons.remove_red_eye),
+                                           label: const Text("View PDF"),
+                                           style: TextButton.styleFrom(foregroundColor: theme.primaryColor),
+                                        ),
+                                        const SizedBox(width: 8),
                                         TextButton.icon(
                                            onPressed: () {
                                               Navigator.pushReplacementNamed(
@@ -403,6 +417,32 @@ class _LibraryScreenState extends State<LibraryScreen> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class PdfViewerScreen extends StatelessWidget {
+  final String title;
+  final String url;
+  final DynamicTheme theme;
+
+  const PdfViewerScreen({
+    super.key,
+    required this.title,
+    required this.url,
+    required this.theme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(title, style: theme.titleStyle.copyWith(fontSize: 18)),
+        backgroundColor: theme.backgroundColor,
+        iconTheme: IconThemeData(color: theme.primaryColor),
+        elevation: 0,
+      ),
+      body: SfPdfViewer.network(url),
     );
   }
 }

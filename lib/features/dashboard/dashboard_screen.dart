@@ -19,6 +19,7 @@ import '../../core/utils/logger.dart';
 import '../../core/services/firestore_service.dart';
 import '../quiz/assessment_screen.dart';
 import '../screening/scoring_engine.dart';
+import '../library/library_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   final Map<String, dynamic>? initialArguments;
@@ -299,6 +300,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ]
             )
           ),
+          ListTile(
+  leading: const Icon(Icons.library_books),
+  title: const Text("Library"),
+  onTap: () {
+    Navigator.pop(context); // Close drawer
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const LibraryScreen()),
+    );
+  },
+),
+const Divider(),
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: _firestoreService.getChatSessions(),
@@ -915,18 +928,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   /// Builds standard non-chunked markdown (e.g. Chat/Errors)
   Widget _buildStandardMarkdown(String text, DynamicTheme theme) {
-     return Container(
-       padding: const EdgeInsets.all(16.0),
-       decoration: BoxDecoration(
-         color: const Color(0xFFF8FAFC),
-         borderRadius: BorderRadius.circular(12),
-       ),
-       child: MarkdownBody(
-          data: text,
-          styleSheet: _getMarkdownStyle(theme),
-       ),
-     );
-  }
+   return Container(
+     padding: const EdgeInsets.all(16.0),
+     decoration: BoxDecoration(
+       color: const Color(0xFFF8FAFC),
+       borderRadius: BorderRadius.circular(12),
+     ),
+     child: TypewriterMarkdown(
+        data: text,
+        styleSheet: _getMarkdownStyle(theme),
+     ),
+   );
+}
 
   MarkdownStyleSheet _getMarkdownStyle(DynamicTheme theme) {
     // Dyslexia overrides
