@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/dynamic_theme.dart';
@@ -5,6 +6,7 @@ import 'quiz_screen.dart';
 
 class QuizIntroductionScreen extends StatelessWidget {
   const QuizIntroductionScreen({super.key});
+
 
   @override
   Widget build(BuildContext context) {
@@ -20,6 +22,19 @@ class QuizIntroductionScreen extends StatelessWidget {
             children: [
               Icon(Icons.psychology, size: 80, color: theme.primaryColor),
               const SizedBox(height: 32),
+              ElevatedButton(onPressed: () async {
+                await FirebaseAuth.instance.signOut(); 
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white
+                
+              ),
+              child: const Text("Back To Login",
+              style: TextStyle(
+                fontFamily: 'Roboto',
+                fontSize: 14,
+                color: Colors.black,
+              ),)),
               Text(
                 "We'd love to learn about how you learn!",
                 style: theme.titleStyle,
