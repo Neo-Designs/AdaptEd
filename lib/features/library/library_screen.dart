@@ -12,6 +12,7 @@ import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
+import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 
 class LibraryScreen extends StatefulWidget {
   const LibraryScreen({super.key});
@@ -334,12 +335,34 @@ class _LibraryScreenState extends State<LibraryScreen> {
                                   ),
                                 ),
                               ),
-                              // Action row: View Summary + Re-summarize
+                              // Action row: View PDF + View Summary + Re-summarize
                               Padding(
                                 padding: const EdgeInsets.only(bottom: 8),
                                 child: Row(
                                   mainAxisAlignment: MainAxisAlignment.end,
                                   children: [
+                                    if (data['fileUrl'] != null)
+                                      TextButton.icon(
+                                        onPressed: () {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) =>
+                                                  PdfViewerScreen(
+                                                title:
+                                                    data['title'] ?? 'Document',
+                                                url: data['fileUrl'],
+                                                theme: theme,
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                        icon: Icon(Icons.remove_red_eye,
+                                            color: theme.primaryColor),
+                                        label: Text('View PDF',
+                                            style: TextStyle(
+                                                color: theme.primaryColor)),
+                                      ),
                                     TextButton.icon(
                                       onPressed: () {
                                         Navigator.pushReplacementNamed(
@@ -584,6 +607,33 @@ class _LibraryScreenState extends State<LibraryScreen> {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ── PDF Viewer Screen ─────────────────────────────────────────────────────────
+class PdfViewerScreen extends StatelessWidget {
+  final String title;
+  final String url;
+  final DynamicTheme theme;
+
+  const PdfViewerScreen({
+    super.key,
+    required this.title,
+    required this.url,
+    required this.theme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(title, style: theme.titleStyle.copyWith(fontSize: 18)),
+        backgroundColor: theme.backgroundColor,
+        iconTheme: IconThemeData(color: theme.primaryColor),
+        elevation: 0,
+      ),
+      body: SfPdfViewer.network(url),
     );
   }
 }

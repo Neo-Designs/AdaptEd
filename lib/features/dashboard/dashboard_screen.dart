@@ -21,6 +21,8 @@ import 'package:provider/provider.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 
+import '../library/library_screen.dart';
+
 class DashboardScreen extends StatefulWidget {
   final Map<String, dynamic>? initialArguments;
   const DashboardScreen({super.key, this.initialArguments});
@@ -506,6 +508,18 @@ class _DashboardScreenState extends State<DashboardScreen>
               ],
             ),
           ),
+          ListTile(
+            leading: const Icon(Icons.library_books),
+            title: const Text("Library"),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const LibraryScreen()),
+              );
+            },
+          ),
+          const Divider(),
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: _firestoreService.getChatSessions(),
@@ -1050,8 +1064,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                     color: isUser
                         ? theme.primaryColor
                         : theme.isDarkMode
-                            ? const Color(
-                                0xFF2A2A3E) // ← visible dark card color
+                            ? const Color(0xFF2A2A3E)
                             : theme.backgroundColor,
                     borderRadius: BorderRadius.only(
                       topLeft: const Radius.circular(18),
@@ -1434,29 +1447,32 @@ class _DashboardScreenState extends State<DashboardScreen>
                 style: theme.titleStyle.copyWith(fontSize: 15)),
             const SizedBox(height: 10),
             Row(
-              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                ElevatedButton.icon(
-                  onPressed: () => _uploadDocument(context),
-                  icon: const Icon(Icons.upload_file, size: 16),
-                  label: const Text('Upload More'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: theme.secondaryColor,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => _uploadDocument(context),
+                    icon: const Icon(Icons.upload_file, size: 16),
+                    label: const Text('Upload More'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: theme.secondaryColor,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
-                ElevatedButton.icon(
-                  onPressed: _navigateToQuiz,
-                  icon: const Icon(Icons.quiz, size: 16),
-                  label: const Text('Take Quiz'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: theme.primaryColor,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: _navigateToQuiz,
+                    icon: const Icon(Icons.quiz, size: 16),
+                    label: const Text('Take Quiz'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: theme.primaryColor,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
                   ),
                 ),
               ],
@@ -1640,7 +1656,6 @@ class _DashboardScreenState extends State<DashboardScreen>
       } catch (e) {
         if (!mounted) return;
         await _firestoreService.saveChatMessage(sessionId, 'ai', summary);
-        // ← ADD typing animation
         if (mounted) {
           final newIndex = _messages.length - 1;
           if (newIndex >= 0) {
@@ -1746,11 +1761,11 @@ class _DashboardScreenState extends State<DashboardScreen>
       baseTextStyle = TextStyle(
         fontFamily: 'OpenDyslexic',
         height: 1.6,
-        color: cardTextColor, // ← fixed
+        color: cardTextColor,
       );
     } else {
       baseTextStyle = GoogleFonts.lexend(
-          textStyle: TextStyle(height: 1.6, color: cardTextColor)); // ← fixed
+          textStyle: TextStyle(height: 1.6, color: cardTextColor));
     }
 
     return Container(
@@ -1804,14 +1819,13 @@ class _DashboardScreenState extends State<DashboardScreen>
     final double wSpacing = isDyslexic ? 2.0 : 0.0;
     const double hght = 1.6;
 
-    // ← Fix: use white in dark mode, black87 in light mode
     final textColor = theme.isDarkMode ? Colors.white : Colors.black87;
 
     TextStyle baseTextStyle;
     if (isDyslexic) {
       baseTextStyle = TextStyle(
         fontFamily: 'OpenDyslexic',
-        color: textColor, // ← was Colors.black87
+        color: textColor,
         height: hght,
         letterSpacing: lSpacing,
         wordSpacing: wSpacing,
@@ -1819,7 +1833,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     } else {
       baseTextStyle = GoogleFonts.lexend(
           textStyle: theme.bodyStyle.copyWith(
-              color: textColor, // ← was Colors.black87
+              color: textColor,
               height: hght,
               letterSpacing: lSpacing,
               wordSpacing: wSpacing));
@@ -2050,7 +2064,7 @@ class _ConfettiPainter extends CustomPainter {
   bool shouldRepaint(_ConfettiPainter old) => old.progress != progress;
 }
 
-// ── ADHD Highlight Builder (used in chat bubbles) ─────────────────────────────
+// ── ADHD Highlight Builder ────────────────────────────────────────────────────
 class _AdhdHighlightBuilder extends MarkdownElementBuilder {
   final bool isADHD;
   _AdhdHighlightBuilder(this.isADHD);
@@ -2086,7 +2100,7 @@ class _AdhdHighlightBuilder extends MarkdownElementBuilder {
   }
 }
 
-// ── General Highlight Builder (used in neuro cards) ───────────────────────────
+// ── General Highlight Builder ─────────────────────────────────────────────────
 class _HighlightBuilder extends MarkdownElementBuilder {
   final UserTraits traits;
   _HighlightBuilder(this.traits);

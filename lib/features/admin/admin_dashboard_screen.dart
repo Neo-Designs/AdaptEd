@@ -73,15 +73,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           children: [
             _buildAnalyticsSection(),
             const SizedBox(height: 32),
-            _buildPromptManagementSection(),
-            const SizedBox(height: 32),
-            _buildChatbotSection(),
-            const SizedBox(height: 32),
             _buildUsersFeed(),
             const SizedBox(height: 32),
             _buildRecentDocumentsSection(),
             const SizedBox(height: 32),
             _buildReviewsFeed(),
+            const SizedBox(height: 32),
+            _buildPromptManagementSection(), // ← was missing
+            const SizedBox(height: 32),
+            _buildChatbotSection(), // ← was missing
             const SizedBox(height: 32),
           ],
         ),
@@ -89,7 +89,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  // --- 1. ANALYTICS & GRAPH SECTION ---
   Widget _buildAnalyticsSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
