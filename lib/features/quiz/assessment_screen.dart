@@ -44,7 +44,7 @@ class _AssessmentScreenState extends State<AssessmentScreen> {
     }
 
     try {
-      final quiz = await _aiService.generateQuiz(widget.content!);
+      final quiz = await _aiService.generateMultipleChoiceQuiz(widget.content!);
       if (mounted) {
         setState(() {
           _questions = quiz;
@@ -85,6 +85,8 @@ class _AssessmentScreenState extends State<AssessmentScreen> {
                     itemCount: _questions.length,
                     itemBuilder: (context, index) {
                       final q = _questions[index];
+                      final options = q['options'] as List<dynamic>? ?? [];
+
                       return Card(
                         margin: const EdgeInsets.only(bottom: 16),
                         child: Padding(
@@ -98,23 +100,50 @@ class _AssessmentScreenState extends State<AssessmentScreen> {
                                     fontSize: 16, fontWeight: FontWeight.bold),
                               ),
                               const SizedBox(height: 8),
-                              ...List.generate((q['options'] as List).length,
-                                  (optIndex) {
+                              ...List.generate(options.length, (oIndex) {
+                                final bool isCorrect =
+                                    oIndex == q['correctIndex'];
+                                final bool isSelected =
+                                    _answers[index] == oIndex;
+
+                                Color? textColor;
+                                if (_submitted) {
+                                  if (isCorrect) {
+                                    textColor = Colors.green;
+                                  } else if (isSelected && !isCorrect) {
+                                    textColor = Colors.red;
+                                  }
+                                }
+
                                 return RadioListTile<int>(
-                                  title: Text(q['options'][optIndex]),
-                                  value: optIndex,
-                                  // ignore: deprecated_member_use
+                                  title: Text(
+                                    options[oIndex].toString(),
+                                    style: TextStyle(
+                                      color: textColor,
+                                      fontWeight: _submitted &&
+                                              (isCorrect || isSelected)
+                                          ? FontWeight.bold
+                                          : FontWeight.normal,
+                                    ),
+                                  ),
+                                  value: oIndex,
                                   groupValue: _answers[index],
-                                  // ignore: deprecated_member_use
                                   onChanged: _submitted
                                       ? null
-                                      : (int? val) {
-                                          if (val != null) {
-                                            setState(() {
-                                              _answers[index] = val;
-                                            });
-                                          }
+                                      : (val) {
+                                          setState(() {
+                                            _answers[index] = val!;
+                                          });
                                         },
+                                  secondary: _submitted
+                                      ? (isCorrect
+                                          ? const Icon(Icons.check_circle,
+                                              color: Colors.green)
+                                          : isSelected
+                                              ? const Icon(Icons.cancel,
+                                                  color: Colors.red)
+                                              : null)
+                                      : null,
                                 );
                               }),
                             ],

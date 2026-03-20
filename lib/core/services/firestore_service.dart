@@ -96,7 +96,7 @@ class FirestoreService {
     }
 
     if (contentToQuiz.isNotEmpty) {
-      final List<Map<String, dynamic>> questions = await _aiService.generateQuiz(contentToQuiz);
+      final List<Map<String, dynamic>> questions = await _aiService.generateShortAnswerQuiz(contentToQuiz);
       if (questions.isNotEmpty) {
         // 4. Save Generated Quiz
         await saveQuiz(materialId, questions);

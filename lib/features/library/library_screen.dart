@@ -5,6 +5,7 @@ import 'package:adapted/core/services/ai_service.dart';
 import 'package:adapted/core/services/firestore_service.dart';
 import 'package:adapted/core/theme/dynamic_theme.dart';
 import 'package:adapted/core/widgets/adapted_card.dart';
+import 'package:adapted/features/quiz/assessment_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -335,12 +336,33 @@ class _LibraryScreenState extends State<LibraryScreen> {
                                   ),
                                 ),
                               ),
-                              // Action row: View PDF + View Summary + Re-summarize
+                              // Action row
                               Padding(
                                 padding: const EdgeInsets.only(bottom: 8),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.end,
+                                child: Wrap(
+                                  alignment: WrapAlignment.end,
                                   children: [
+                                    // Take Quiz button (from mobile-branch)
+                                    TextButton.icon(
+                                      onPressed: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) =>
+                                                AssessmentScreen(
+                                              content: data['fullText'] ??
+                                                  data['summary'] ??
+                                                  'No content available.',
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                      icon: Icon(Icons.quiz_outlined,
+                                          color: theme.primaryColor),
+                                      label: Text('Take Quiz',
+                                          style: TextStyle(
+                                              color: theme.primaryColor)),
+                                    ),
                                     if (data['fileUrl'] != null)
                                       TextButton.icon(
                                         onPressed: () {
@@ -511,15 +533,10 @@ class _LibraryScreenState extends State<LibraryScreen> {
   Widget _parseAndRenderSummary(String summary, DynamicTheme theme) {
     try {
       String rawText = summary.trim();
-      if (rawText.startsWith('```json')) {
-        rawText = rawText.substring(7);
-      }
-      if (rawText.startsWith('```')) {
-        rawText = rawText.substring(3);
-      }
-      if (rawText.endsWith('```')) {
+      if (rawText.startsWith('```json')) rawText = rawText.substring(7);
+      if (rawText.startsWith('```')) rawText = rawText.substring(3);
+      if (rawText.endsWith('```'))
         rawText = rawText.substring(0, rawText.length - 3);
-      }
       rawText = rawText.trim();
 
       final parsed = jsonDecode(rawText);

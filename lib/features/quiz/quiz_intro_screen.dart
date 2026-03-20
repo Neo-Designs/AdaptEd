@@ -1,5 +1,6 @@
 import 'package:adapted/core/theme/dynamic_theme.dart';
 import 'package:adapted/core/widgets/adapted_button.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -20,9 +21,24 @@ class QuizIntroductionScreen extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // ← Icon color reacts to traits
               Icon(Icons.psychology, size: 80, color: dt.primaryColor),
               const SizedBox(height: 32),
+              ElevatedButton(
+                onPressed: () async {
+                  await FirebaseAuth.instance.signOut();
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                ),
+                child: const Text(
+                  "Back To Login",
+                  style: TextStyle(
+                    fontFamily: 'Roboto',
+                    fontSize: 14,
+                    color: Colors.black,
+                  ),
+                ),
+              ),
               Text(
                 "We'd love to learn about how you learn!",
                 style: dt.titleStyle,
@@ -36,7 +52,6 @@ class QuizIntroductionScreen extends StatelessWidget {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 48),
-              // ← AdaptedButton replaces ElevatedButton
               AdaptedButton(
                 label: 'Start Quiz',
                 onPressed: () {
