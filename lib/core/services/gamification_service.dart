@@ -5,80 +5,129 @@ class GamificationService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  // XP Rules from Documentation
   static const int xpPerLevel = 500;
-  static const int xpDailyLogin = 10; // [cite: 18, 20]
-  static const int xpIntroQuiz = 30;   // [cite: 17, 20]
-  static const int xpRevision = 20;    // [cite: 19, 20]
+  static const int xpDailyLogin = 10;
+  static const int xpIntroQuiz = 30;
+  static const int xpRevision = 20;
 
-  // Main event handler to update XP and check for badges
-  Future<void> handleEvent(String eventType, {double? quizScore}) async {
+  // Changed return type to Future<List<String>> so UI can react to badge awards
+  Future<List<String>> handleEvent(String eventType, {double? quizScore}) async {
     final user = _auth.currentUser;
-    if (user == null) return;
+    if (user == null) return [];
 
     final docRef = _firestore.collection('users').doc(user.uid);
+    List<String> newEarnedBadges = [];
 
     await _firestore.runTransaction((transaction) async {
       final snapshot = await transaction.get(docRef);
       if (!snapshot.exists) return;
 
       final data = snapshot.data()!;
-      int currentXP = data['total_xp'] ?? 20; // Starts at 20 [cite: 16, 21]
-      int sessionCounter = data['tasks_session_counter'] ?? 0; // [cite: 23]
-      List<dynamic> currentBadges = data['badges_earned'] ?? []; //
+      int currentXP = data['total_xp'] ?? 20;
+      int revisionCounter = data['total_revision_counter'] ?? 0;
+      List<dynamic> currentBadges = data['badges_earned'] ?? [];
+      int currentStreak = data['streak'] ?? 0;
 
       int xpToAdd = 0;
+      bool updateLoginDate = false;
 
-      // Logic for XP distribution
-      switch (eventType) {
-        case 'daily_login': xpToAdd = xpDailyLogin; break;
-        case 'intro_quiz': xpToAdd = xpIntroQuiz; break;
-        case 'revision':
-          xpToAdd = xpRevision;
-          sessionCounter++; // Increment for Bronze/Silver/Gold [cite: 14]
-          break;
+      if (eventType == 'daily_login') {
+        Timestamp? lastLoginTs = data['last_login_date'];
+        DateTime now = DateTime.now();
+        DateTime today = DateTime(now.year, now.month, now.day);
+
+        if (lastLoginTs == null) {
+          currentStreak = 1;
+          xpToAdd = xpDailyLogin;
+          updateLoginDate = true;
+        } else {
+          DateTime lastLoginDate = lastLoginTs.toDate();
+          DateTime lastLoginDay = DateTime(
+            lastLoginDate.year,
+            lastLoginDate.month,
+            lastLoginDate.day,
+          );
+
+          int dayDifference = today.difference(lastLoginDay).inDays;
+
+          if (dayDifference == 1) {
+            currentStreak += 1;
+            xpToAdd = xpDailyLogin;
+            updateLoginDate = true;
+          } else if (dayDifference > 1) {
+            currentStreak = 1;
+            xpToAdd = xpDailyLogin;
+            updateLoginDate = true;
+          } else if (dayDifference == 0) {
+            xpToAdd = 0;
+          }
+        }
+      } else if (eventType == 'intro_quiz') {
+        xpToAdd = xpIntroQuiz;
+      } else if (eventType == 'revision') {
+        xpToAdd = xpRevision;
+        revisionCounter++;
       }
 
       int newXP = currentXP + xpToAdd;
-      int newLevel = (newXP / xpPerLevel).floor() + 1; // Level calculation
+      int newLevel = (newXP / xpPerLevel).floor() + 1;
 
-      // Logic for Badge awarding [cite: 2-10, 14]
-      List<String> newEarnedBadges = [];
+      // XP threshold badges
+      if (newXP >= 100 && !currentBadges.contains('Newbie'))
+        newEarnedBadges.add('Newbie');
+      if (newXP >= 200 && !currentBadges.contains('Rookie'))
+        newEarnedBadges.add('Rookie');
+      if (newXP >= 400 && !currentBadges.contains('Apprentice'))
+        newEarnedBadges.add('Apprentice');
+      if (newXP >= 1000 && !currentBadges.contains('Practitioner'))
+        newEarnedBadges.add('Practitioner');
+      if (newXP >= 2500 && !currentBadges.contains('Master'))
+        newEarnedBadges.add('Master');
 
-      // XP Threshold Badges [cite: 2-6]
-      if (newXP >= 100 && !currentBadges.contains('Newbie')) newEarnedBadges.add('Newbie');
-      if (newXP >= 200 && !currentBadges.contains('Rookie')) newEarnedBadges.add('Rookie');
-      if (newXP >= 400 && !currentBadges.contains('Apprentice')) newEarnedBadges.add('Apprentice');
-      if (newXP >= 1000 && !currentBadges.contains('Practitioner')) newEarnedBadges.add('Practitioner');
-      if (newXP >= 2500 && !currentBadges.contains('Master')) newEarnedBadges.add('Master');
+      // Revision counter badges
+      if (revisionCounter >= 2 && !currentBadges.contains('Bronze'))
+        newEarnedBadges.add('Bronze');
+      if (revisionCounter >= 5 && !currentBadges.contains('Silver'))
+        newEarnedBadges.add('Silver');
+      if (revisionCounter >= 10 && !currentBadges.contains('Gold'))
+        newEarnedBadges.add('Gold');
 
-      // Session/Performance Badges [cite: 7-10, 14]
-      if (sessionCounter >= 2 && !currentBadges.contains('Bronze')) newEarnedBadges.add('Bronze');
-      if (sessionCounter >= 5 && !currentBadges.contains('Silver')) newEarnedBadges.add('Silver');
-      if (sessionCounter >= 10 && !currentBadges.contains('Gold')) newEarnedBadges.add('Gold');
-      if (quizScore == 100.0 && !currentBadges.contains('All Star')) newEarnedBadges.add('All Star');
+      // Quiz performance badge
+      if (quizScore == 100.0 && !currentBadges.contains('All Star'))
+        newEarnedBadges.add('All Star');
 
-      transaction.update(docRef, {
+      // Streak badge
+      if (currentStreak >= 7 && !currentBadges.contains('Streak Master'))
+        newEarnedBadges.add('Streak Master');
+
+      Map<String, dynamic> updates = {
         'total_xp': newXP,
         'level': newLevel,
-        'tasks_session_counter': sessionCounter,
-        if (newEarnedBadges.isNotEmpty)
-          'badges_earned': FieldValue.arrayUnion(newEarnedBadges),
+        'total_revision_counter': revisionCounter,
+        'streak': currentStreak,
         'lastUpdated': FieldValue.serverTimestamp(),
-      });
-    });
-  }
+      };
 
-  // Reset counter on logout
-  Future<void> resetSession() async {
-    final user = _auth.currentUser;
-    if (user == null) return;
-    await _firestore.collection('users').doc(user.uid).update({
-      'tasks_session_counter': 0,
+      if (updateLoginDate) {
+        updates['last_login_date'] = Timestamp.fromDate(DateTime.now());
+      }
+
+      if (newEarnedBadges.isNotEmpty) {
+        updates['badges_earned'] = FieldValue.arrayUnion(newEarnedBadges);
+      }
+
+      transaction.update(docRef, updates);
     });
+
+    return newEarnedBadges;
   }
 
   Stream<DocumentSnapshot> getUserStats() {
-    return _firestore.collection('users').doc(_auth.currentUser?.uid).snapshots();
+    final user = _auth.currentUser;
+    if (user == null) return const Stream.empty();
+    return _firestore
+        .collection('users')
+        .doc(_auth.currentUser?.uid)
+        .snapshots();
   }
 }

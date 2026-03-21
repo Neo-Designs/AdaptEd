@@ -105,14 +105,29 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
       stream: _userStatsStream,
       builder: (context, snapshot) {
         final data = snapshot.data?.data() as Map<String, dynamic>?;
-        final streak = data?['consecutive_login_days'] ?? 0;
+        // FIXED: changed from 'consecutive_login_days' to 'streak'
+        final streak = data?['streak'] ?? 0;
 
         return Card(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16)),
           child: ListTile(
-            leading: const Icon(Icons.local_fire_department, color: Colors.orange, size: 32),
-            title: Text("$streak Day Streak!", style: const TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Text(streak >= 7 ? "You've earned the 'All In' Badge!" : "Keep it up for 7 days to get a badge!"),
+            leading: Icon(
+              Icons.local_fire_department,
+              color: streak > 0 ? Colors.orange : Colors.grey,
+              size: 32,
+            ),
+            title: Text(
+              "$streak Day Streak!",
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            subtitle: Text(
+              streak >= 7
+                  ? "You've earned the 'Streak Master' badge! 🏆"
+                  : streak == 0
+                  ? "Log in daily to start your streak! 🔥"
+                  : "Keep it up for ${7 - streak} more days to earn a badge!",
+            ),
           ),
         );
       },

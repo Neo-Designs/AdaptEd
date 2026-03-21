@@ -28,11 +28,13 @@ dependencies:
   confetti: ^0.7.0
   audioplayers: ^6.6.0
   showcaseview: ^5.0.1
+  shared_preferences: ^2.5.4
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^2.0.0
+
 
 flutter:
   uses-material-design: true

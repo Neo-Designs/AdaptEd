@@ -13,6 +13,7 @@ class UserTraits {
   final bool isDyslexic;
   final bool isDyspraxic;
   final String learningProfileName;
+  final bool hasSeenTutorial;
 
   UserTraits({
     this.isAutistic = false,
@@ -20,7 +21,26 @@ class UserTraits {
     this.isDyslexic = false,
     this.isDyspraxic = false,
     this.learningProfileName = 'The Adaptive Learner',
+    this.hasSeenTutorial = false,
   });
+
+  UserTraits copyWith({
+    bool? isAutistic,
+    bool? isADHD,
+    bool? isDyslexic,
+    bool? isDyspraxic,
+    String? learningProfileName,
+    bool? hasSeenTutorial,
+}) {
+    return UserTraits(
+      isAutistic: isAutistic ?? this.isAutistic,
+      isADHD: isADHD ?? this.isADHD,
+      isDyslexic: isDyslexic ?? this.isDyslexic,
+      isDyspraxic: isDyspraxic ?? this.isDyspraxic,
+      learningProfileName: learningProfileName ?? this.learningProfileName,
+      hasSeenTutorial: hasSeenTutorial ?? this.hasSeenTutorial,
+    );
+  }
 
   factory UserTraits.standard() => UserTraits();
 
@@ -31,6 +51,7 @@ class UserTraits {
       'isDyslexic': isDyslexic,
       'isDyspraxic': isDyspraxic,
       'learningProfileName': learningProfileName,
+      'hasSeenTutorial': hasSeenTutorial,
     };
   }
 
@@ -40,7 +61,8 @@ class UserTraits {
       isADHD: json['isADHD'] ?? false,
       isDyslexic: json['isDyslexic'] ?? false,
       isDyspraxic: json['isDyspraxic'] ?? false,
-      learningProfileName: json['learningProfileName'] ?? 'The Adaptive Learner',
+      hasSeenTutorial: json['hasSeenTutorial'] ?? false,
+      learningProfileName: json['learningProfileName'] ?? '',
     );
   }
 
@@ -53,7 +75,8 @@ class UserTraits {
           isADHD == other.isADHD &&
           isDyslexic == other.isDyslexic &&
           isDyspraxic == other.isDyspraxic &&
-          learningProfileName == other.learningProfileName;
+          learningProfileName == other.learningProfileName &&
+          hasSeenTutorial == other.hasSeenTutorial;
 
   @override
   int get hashCode =>
@@ -61,7 +84,8 @@ class UserTraits {
       isADHD.hashCode ^
       isDyslexic.hashCode ^
       isDyspraxic.hashCode ^
-      learningProfileName.hashCode;
+      learningProfileName.hashCode ^
+       hasSeenTutorial.hashCode;
 }
 
 class ScoringEngine {
@@ -80,7 +104,7 @@ class ScoringEngine {
     _scores[relatedTrait] = (_scores[relatedTrait] ?? 0) + weight;
   }
 
-  UserTraits calculateProfile() {
+  UserTraits calculateProfile({bool tutorialStatus = false}) {
     final bool isAutistic = (_scores[Trait.autism] ?? 0) >= _threshold;
     final bool isADHD = (_scores[Trait.adhd] ?? 0) >= _threshold;
     final bool isDyslexic = (_scores[Trait.dyslexia] ?? 0) >= _threshold;
@@ -94,6 +118,7 @@ class ScoringEngine {
       isDyslexic: isDyslexic,
       isDyspraxic: isDyspraxic,
       learningProfileName: profileName,
+      hasSeenTutorial: tutorialStatus,
     );
   }
 
