@@ -175,8 +175,9 @@ class _DashboardScreenState extends State<DashboardScreen>
         },
         onStatus: (val) {
           debugPrint('STT Status: $val');
-          if (val == 'done' || val == 'notListening')
+          if (val == 'done' || val == 'notListening') {
             _isInitializingStt = false;
+          }
         },
       );
     } catch (e) {
@@ -254,8 +255,9 @@ class _DashboardScreenState extends State<DashboardScreen>
               child: StreamBuilder<QuerySnapshot>(
                 stream: _firestoreService.getChatSessions(),
                 builder: (context, snapshot) {
-                  if (!snapshot.hasData)
+                  if (!snapshot.hasData) {
                     return const Center(child: CircularProgressIndicator());
+                  }
                   final docs = snapshot.data!.docs;
                   if (docs.isEmpty) {
                     return Center(
@@ -536,11 +538,13 @@ class _DashboardScreenState extends State<DashboardScreen>
             child: StreamBuilder<QuerySnapshot>(
               stream: _firestoreService.getChatSessions(),
               builder: (context, snapshot) {
-                if (!snapshot.hasData)
+                if (!snapshot.hasData) {
                   return const Center(child: CircularProgressIndicator());
+                }
                 final docs = snapshot.data!.docs;
-                if (docs.isEmpty)
+                if (docs.isEmpty) {
                   return const Center(child: Text('No chats yet.'));
+                }
                 return ListView.builder(
                   itemCount: docs.length,
                   itemBuilder: (context, index) {
@@ -1190,8 +1194,9 @@ class _DashboardScreenState extends State<DashboardScreen>
     String rawText = displayText.trim();
     if (rawText.startsWith('```json')) rawText = rawText.substring(7);
     if (rawText.startsWith('```')) rawText = rawText.substring(3);
-    if (rawText.endsWith('```'))
+    if (rawText.endsWith('```')) {
       rawText = rawText.substring(0, rawText.length - 3);
+    }
     rawText = rawText.trim();
 
     try {
@@ -1606,8 +1611,9 @@ class _DashboardScreenState extends State<DashboardScreen>
         String rawText = summary.trim();
         if (rawText.startsWith('```json')) rawText = rawText.substring(7);
         if (rawText.startsWith('```')) rawText = rawText.substring(3);
-        if (rawText.endsWith('```'))
+        if (rawText.endsWith('```')) {
           rawText = rawText.substring(0, rawText.length - 3);
+        }
         rawText = rawText.trim();
 
         final List<dynamic> parsedChunks = jsonDecode(rawText);
@@ -1676,8 +1682,9 @@ class _DashboardScreenState extends State<DashboardScreen>
         String rawText = summary.trim();
         if (rawText.startsWith('```json')) rawText = rawText.substring(7);
         if (rawText.startsWith('```')) rawText = rawText.substring(3);
-        if (rawText.endsWith('```'))
+        if (rawText.endsWith('```')) {
           rawText = rawText.substring(0, rawText.length - 3);
+        }
         rawText = rawText.trim();
 
         final List<dynamic> parsedChunks = jsonDecode(rawText);

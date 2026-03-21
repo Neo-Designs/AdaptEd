@@ -535,8 +535,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
       String rawText = summary.trim();
       if (rawText.startsWith('```json')) rawText = rawText.substring(7);
       if (rawText.startsWith('```')) rawText = rawText.substring(3);
-      if (rawText.endsWith('```'))
+      if (rawText.endsWith('```')) {
         rawText = rawText.substring(0, rawText.length - 3);
+      }
       rawText = rawText.trim();
 
       final parsed = jsonDecode(rawText);

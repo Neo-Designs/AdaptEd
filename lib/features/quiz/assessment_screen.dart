@@ -127,7 +127,9 @@ class _AssessmentScreenState extends State<AssessmentScreen> {
                                     ),
                                   ),
                                   value: oIndex,
+                                  // ignore: deprecated_member_use
                                   groupValue: _answers[index],
+                                  // ignore: deprecated_member_use
                                   onChanged: _submitted
                                       ? null
                                       : (val) {

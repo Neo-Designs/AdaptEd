@@ -18,10 +18,12 @@ class AIService {
       if (doc.exists) {
         final data = doc.data();
         if (data != null) {
-          if (data['summaryPrompt'] != null)
+          if (data['summaryPrompt'] != null) {
             summaryPrompt = data['summaryPrompt'];
-          if (data['chatbotPersonaPrompt'] != null)
+          }
+          if (data['chatbotPersonaPrompt'] != null) {
             chatbotPersonaPrompt = data['chatbotPersonaPrompt'];
+          }
           AppLogger.info('Prompts initialized from Firestore',
               tag: 'AIService');
         }
@@ -268,8 +270,9 @@ class AIService {
 
     final url = Uri.parse('https://api.groq.com/openai/v1/chat/completions');
     final messages = [];
-    if (systemPrompt != null)
+    if (systemPrompt != null) {
       messages.add({'role': 'system', 'content': systemPrompt});
+    }
     messages.add({'role': 'user', 'content': userContent});
 
     try {
