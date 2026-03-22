@@ -1,0 +1,50 @@
+﻿Analyzing AdaptEd...                                            
+
+   info - Don't invoke 'print' in production code - lib\core\services\firestore_service.dart:251:9 - avoid_print
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\core\theme\dynamic_theme.dart:93:25 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\core\theme\dynamic_theme.dart:95:44 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\core\theme\dynamic_theme.dart:97:37 - deprecated_member_use
+   info - 'background' is deprecated and shouldn't be used. Use surface instead. This feature was deprecated after v3.18.0-0.1.pre - lib\core\theme\dynamic_theme.dart:137:9 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\core\widgets\adaptive_layout_shell.dart:171:64 - deprecated_member_use
+   info - Parameter 'key' could be a super parameter - lib\core\widgets\rating_widget.dart:7:9 - use_super_parameters
+   info - Invalid use of a private type in a public API - lib\core\widgets\rating_widget.dart:14:3 - library_private_types_in_public_api
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\admin\admin_dashboard_screen.dart:97:76 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\admin\admin_dashboard_screen.dart:178:51 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\analytics\analytics_screen.dart:75:45 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\analytics\analytics_screen.dart:91:71 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\chat\quick_chat_screen.dart:99:41 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\chat\quick_chat_screen.dart:114:70 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\chat\quick_chat_screen.dart:118:43 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\chat\quick_chat_screen.dart:175:37 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\chat\quick_chat_screen.dart:180:68 - deprecated_member_use
+   info - 'cancelOnError' is deprecated and shouldn't be used. Use SpeechListenOptions.cancelOnError instead - lib\features\dashboard\dashboard_screen.dart:124:9 - deprecated_member_use
+   info - 'partialResults' is deprecated and shouldn't be used. Use SpeechListenOptions.partialResults instead - lib\features\dashboard\dashboard_screen.dart:125:9 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\dashboard\dashboard_screen.dart:208:36 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\dashboard\dashboard_screen.dart:247:47 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\dashboard\dashboard_screen.dart:366:65 - deprecated_member_use
+warning - Unnecessary cast - lib\features\dashboard\dashboard_screen.dart:527:89 - unnecessary_cast
+warning - Unnecessary cast - lib\features\dashboard\dashboard_screen.dart:536:19 - unnecessary_cast
+warning - Unnecessary cast - lib\features\dashboard\dashboard_screen.dart:537:25 - unnecessary_cast
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\features\dashboard\dashboard_screen.dart:547:48 - use_build_context_synchronously
+warning - The value of the local variable 'materialId' isn't used - lib\features\dashboard\dashboard_screen.dart:560:13 - unused_local_variable
+   info - Don't use 'BuildContext's across async gaps - lib\features\dashboard\dashboard_screen.dart:599:28 - use_build_context_synchronously
+  error - Undefined class 'NeuroTraits' - lib\features\dashboard\dashboard_screen.dart:736:9 - undefined_class
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\dashboard\dashboard_screen.dart:745:30 - deprecated_member_use
+  error - Expected a method, getter, setter or operator declaration - lib\features\dashboard\dashboard_screen.dart:757:1 - expected_executable
+   info - Parameter 'key' could be a super parameter - lib\features\dashboard\dashboard_screen.dart:764:9 - use_super_parameters
+  error - The argument type 'Map<String, MarkdownElementBuilder>?' can't be assigned to the parameter type 'Map<String, MarkdownElementBuilder>'.  - lib\features\dashboard\dashboard_screen.dart:831:17 - argument_type_not_assignable
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\features\library\library_screen.dart:52:28 - use_build_context_synchronously
+warning - Unnecessary cast - lib\features\library\library_screen.dart:71:19 - unnecessary_cast
+warning - Unnecessary cast - lib\features\library\library_screen.dart:72:25 - unnecessary_cast
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\features\library\library_screen.dart:98:28 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\features\library\library_screen.dart:102:28 - use_build_context_synchronously
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\library\library_screen.dart:199:56 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\library\library_screen.dart:201:50 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\library\library_screen.dart:209:43 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\profile\profile_screen.dart:136:55 - deprecated_member_use
+   info - The private field _answers could be 'final' - lib\features\quiz\assessment_screen.dart:21:17 - prefer_final_fields
+   info - 'groupValue' is deprecated and shouldn't be used. Use a RadioGroup ancestor to manage group value instead. This feature was deprecated after v3.32.0-0.0.pre - lib\features\quiz\assessment_screen.dart:104:35 - deprecated_member_use
+   info - 'onChanged' is deprecated and shouldn't be used. Use RadioGroup to handle value change instead. This feature was deprecated after v3.32.0-0.0.pre - lib\features\quiz\assessment_screen.dart:105:35 - deprecated_member_use
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\features\quiz\assessment_screen.dart:139:52 - use_build_context_synchronously
+   info - 'activeColor' is deprecated and shouldn't be used. Use activeThumbColor instead. This feature was deprecated after v3.31.0-2.0.pre - lib\features\settings\settings_screen.dart:82:7 - deprecated_member_use
+

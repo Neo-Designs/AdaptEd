@@ -5,13 +5,13 @@ class RatingWidget extends StatefulWidget {
   final Function(int) onRatingChanged;
 
   const RatingWidget({
-    Key? key, 
+    super.key, 
     this.initialRating = 0, 
     required this.onRatingChanged
-  }) : super(key: key);
+  });
 
   @override
-  _RatingWidgetState createState() => _RatingWidgetState();
+  State<RatingWidget> createState() => _RatingWidgetState();
 }
 
 class _RatingWidgetState extends State<RatingWidget> {

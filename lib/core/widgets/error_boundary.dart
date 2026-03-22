@@ -12,16 +12,12 @@ class ErrorBoundary extends StatefulWidget {
 
 class _ErrorBoundaryState extends State<ErrorBoundary> {
   bool _hasError = false;
-  Object? _error;
 
   @override
   void initState() {
     super.initState();
   }
 
-  static void reportError(Object error, StackTrace stackTrace) {
-    AppLogger.error('Caught by ErrorBoundary', error: error, stackTrace: stackTrace);
-  }
 
   @override
   void didChangeDependencies() {
@@ -65,18 +61,14 @@ class _ErrorBoundaryState extends State<ErrorBoundary> {
       );
     }
 
-    return ErrorWidget.builder == null 
-      ? widget.child 
-      : widget.child;
+    return widget.child;
   }
 
   // This is the key method for catching errors in children
-  @override
   void onError(FlutterErrorDetails details) {
     AppLogger.error('Flutter Framework Error', error: details.exception, stackTrace: details.stack);
     setState(() {
       _hasError = true;
-      _error = details.exception;
     });
   }
 }

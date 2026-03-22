@@ -1,38 +1,34 @@
-import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:provider/provider.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:firebase_auth/firebase_auth.dart' hide EmailAuthProvider;
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_ui_auth/firebase_ui_auth.dart' hide ProfileScreen;
+import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:provider/provider.dart';
 
-import 'firebase_options.dart';
-import 'core/theme/dynamic_theme.dart';
-import 'core/services/user_service.dart';
 import 'core/services/ai_service.dart';
 import 'core/services/firestore_service.dart';
-import 'core/widgets/error_boundary.dart';
-import 'core/widgets/adaptive_layout_shell.dart';
+import 'core/services/user_service.dart';
+import 'core/theme/dynamic_theme.dart';
 import 'core/utils/logger.dart';
-
-// Screens - Only importing existing files
+import 'core/widgets/adaptive_layout_shell.dart';
+import 'core/widgets/error_boundary.dart';
+import 'features/admin/admin_dashboard_screen.dart';
+import 'features/analytics/analytics_screen.dart';
 import 'features/dashboard/dashboard_screen.dart';
+import 'features/faq/faq_screen.dart';
+import 'features/library/library_screen.dart';
+import 'features/profile/profile_screen.dart';
 import 'features/quiz/quiz_intro_screen.dart';
 import 'features/quiz/quiz_screen.dart';
-import 'features/library/library_screen.dart';
-import 'features/analytics/analytics_screen.dart';
 import 'features/settings/settings_screen.dart';
-import 'features/profile/profile_screen.dart';
-import 'features/faq/faq_screen.dart';
-// import 'features/chat/quick_chat_screen.dart'; // Optional if needed
+import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // Initialize Global Error Handling
   setupGlobalErrorHandling();
 
   try {
-    await dotenv.load(fileName: ".env");
+    await dotenv.load(fileName: '.env');
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
@@ -46,7 +42,11 @@ void main() async {
       providers: [
         ChangeNotifierProvider(create: (_) => DynamicTheme()),
         ChangeNotifierProvider(create: (_) => UserService()),
-        Provider(create: (_) => AIService()),
+        Provider(create: (_) {
+          final service = AIService();
+          service.initializePrompts();
+          return service;
+        }),
         Provider(create: (_) => FirestoreService()),
       ],
       child: const ErrorBoundary(
@@ -61,22 +61,21 @@ class AdaptEdApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<DynamicTheme>(
-      builder: (context, theme, _) {
-        return MaterialApp(
-          title: 'AdaptEd',
-          // FIX: Use theme.themeData correctly
-          theme: theme.themeData, 
-          debugShowCheckedModeBanner: false,
-          
-          initialRoute: '/',
-          
-          onGenerateRoute: (settings) {
-            return MaterialPageRoute(
-              settings: settings, 
-              builder: (context) => AuthWrapper(route: settings.name),
-            );
-          },
+    // context.watch() triggers a full rebuild when theme changes
+    final theme = context.watch<DynamicTheme>();
+
+    return MaterialApp(
+      title: 'AdaptEd',
+      theme: theme.themeData,
+      debugShowCheckedModeBanner: false,
+      initialRoute: '/',
+      onGenerateRoute: (settings) {
+        return MaterialPageRoute(
+          settings: settings,
+          builder: (context) => AuthWrapper(
+            route: settings.name,
+            arguments: settings.arguments,
+          ),
         );
       },
     );
@@ -85,69 +84,72 @@ class AdaptEdApp extends StatelessWidget {
 
 class AuthWrapper extends StatelessWidget {
   final String? route;
-  const AuthWrapper({super.key, this.route});
+  final Object? arguments;
+  const AuthWrapper({super.key, this.route, this.arguments});
 
   @override
   Widget build(BuildContext context) {
     final userService = Provider.of<UserService>(context);
-    final role = userService.role; 
+    final role = userService.role;
 
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
-        
         // 1. Loading State
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+          return const Scaffold(
+              body: Center(child: CircularProgressIndicator()));
         }
 
-        // 2. Unauthenticated -> Login Screen (Placeholder/FirebaseUI)
+        // 2. Unauthenticated → Login
         if (!snapshot.hasData) {
-          return const LoginScreen(); 
+          return const LoginScreen();
         }
 
-        // 3. Authenticated -> Wait for User Profile Initialization
+        // 3. Wait for profile to load
         if (!userService.isInitialized) {
-           return const Scaffold(body: Center(child: CircularProgressIndicator()));
+          return const Scaffold(
+              body: Center(child: CircularProgressIndicator()));
         }
 
-        // Sync theme with user traits
-        if (userService.currentTraits != null) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            Provider.of<DynamicTheme>(context, listen: false)
-                .setTraits(userService.currentTraits!);
-          });
-        }
+        // 4. Sync traits → DynamicTheme
+        _syncTraitsToTheme(context, userService);
 
-        // 4. Role-based Routing
+        // 5. Role-based routing
         if (role == 'admin') {
-           if (route == '/admin') {
-             return const AdminDashboardScreen(); 
-           }
-           // Admins default to admin dashboard
-           if (route == '/' || route == '/dashboard') {
-             return const AdminDashboardScreen();
-           }
+          if (route == '/' || route == '/dashboard' || route == '/admin') {
+            return const AdminDashboardScreen();
+          }
         }
 
-        // 5. Learner Logic
+        // 6. First-time learner → Quiz
         if (userService.currentTraits == null) {
           return const QuizIntroductionScreen();
         }
 
-        // 6. Navigation
+        // 7. Main app shell
         return AdaptiveLayoutShell(
-          child: _getPageForRoute(route),
+          child: _getPageForRoute(route, arguments),
         );
       },
     );
   }
 
-  Widget _getPageForRoute(String? route) {
+  // addPostFrameCallback ensures we don't call setState during build.
+  void _syncTraitsToTheme(BuildContext context, UserService userService) {
+    if (userService.currentTraits == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<DynamicTheme>(context, listen: false)
+          .setTraits(userService.currentTraits!);
+    });
+  }
+
+  Widget _getPageForRoute(String? route, Object? arguments) {
     switch (route) {
       case '/dashboard':
-      case '/': 
-        return const DashboardScreen();
+      case '/':
+        return DashboardScreen(
+            initialArguments: arguments as Map<String, dynamic>?);
       case '/library':
         return const LibraryScreen();
       case '/analytics':
@@ -160,14 +162,11 @@ class AuthWrapper extends StatelessWidget {
         return const FAQScreen();
       case '/quiz':
         return const QuizScreen();
-      // Add other routes as needed
       default:
         return const DashboardScreen();
     }
   }
 }
-
-// --- PLACEHOLDERS ---
 
 class LoginScreen extends StatelessWidget {
   const LoginScreen({super.key});
@@ -178,21 +177,9 @@ class LoginScreen extends StatelessWidget {
       providers: [EmailAuthProvider()],
       actions: [
         AuthStateChangeAction<SignedIn>((context, state) {
-           // User Service will handle data fetching on next stream update
+          // UserService handles data fetching on next stream update
         }),
       ],
-    );
-  }
-}
-
-class AdminDashboardScreen extends StatelessWidget {
-  const AdminDashboardScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("Admin Dashboard")),
-      body: const Center(child: Text("Admin Features Coming Soon")),
     );
   }
 }
