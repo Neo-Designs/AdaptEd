@@ -340,7 +340,8 @@ class _DashboardScreenState extends State<DashboardScreen>
         charIndex = (charIndex + batchSize).clamp(0, safeRunes.length);
         setState(() {
           // High performance sublist instead of sluggish iterators!
-          _typingDisplayText = String.fromCharCodes(safeRunes.sublist(0, charIndex));
+          _typingDisplayText =
+              String.fromCharCodes(safeRunes.sublist(0, charIndex));
         });
         _scrollToBottom();
       } else {
@@ -372,8 +373,24 @@ class _DashboardScreenState extends State<DashboardScreen>
     }
   }
 
-  void _listen() async {
-    if (!_speechEnabled) await _speech.initialize();
+    void _listen() async {
+    // 1. Aggressively request permission and initialize
+    bool isReady = await _speech.initialize();
+    
+    if (!isReady) {
+      // 2. Alert the user if the microphone is blocked/denied!
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Microphone access denied or unavailable.'),
+          backgroundColor: Colors.redAccent,
+        ));
+      }
+      return; // Stop here safely
+    }
+
+    // 3. Mark as enabled and toggle listening
+    setState(() => _speechEnabled = true);
+
     if (_speech.isListening) {
       await _speech.stop();
       setState(() => _isListening = false);
@@ -400,7 +417,8 @@ class _DashboardScreenState extends State<DashboardScreen>
     }
   }
 
-    void _showDifficultyDialog() {
+
+  void _showDifficultyDialog() {
     final theme = context.read<DynamicTheme>();
     showDialog(
       context: context,
@@ -412,11 +430,14 @@ class _DashboardScreenState extends State<DashboardScreen>
             mainAxisSize: MainAxisSize.min,
             children: ['EASY', 'MEDIUM', 'HARD'].map((level) {
               return ListTile(
-                title: Text(level, style: theme.bodyStyle.copyWith(fontWeight: FontWeight.w600)),
+                title: Text(level,
+                    style:
+                        theme.bodyStyle.copyWith(fontWeight: FontWeight.w600)),
                 trailing: Icon(Icons.chevron_right, color: theme.primaryColor),
                 onTap: () {
                   Navigator.pop(context); // Close dialog
-                  _navigateToQuiz(difficulty: level); // Route to the quiz engine!
+                  _navigateToQuiz(
+                      difficulty: level); // Route to the quiz engine!
                 },
               );
             }).toList(),
@@ -431,55 +452,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     Navigator.of(context).push(
       MaterialPageRoute(
           builder: (context) => AssessmentScreen(
-              content: _extractedText, 
-              difficulty: difficulty)), 
-    );
-  }
-
-
-  void _showReviewDialog() {
-    showDialog(
-      context: context,
-      builder: (context) {
-        final reviewCtrl = TextEditingController();
-        return AlertDialog(
-          title: const Text('Leave a Review'),
-          content: TextField(
-            controller: reviewCtrl,
-            decoration: const InputDecoration(
-                hintText: 'How is your learning experience?'),
-            maxLines: 3,
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                if (reviewCtrl.text.isNotEmpty) {
-                  try {
-                    await FirebaseFirestore.instance.collection('reviews').add({
-                      'userId': _firestoreService.currentUser?.uid,
-                      'text': reviewCtrl.text,
-                      'rating': 5,
-                      'timestamp': FieldValue.serverTimestamp(),
-                    });
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                          content: Text('Thanks for your feedback!')));
-                    }
-                  } catch (e) {
-                    AppLogger.error('Failed to save review', error: e);
-                  }
-                }
-                if (context.mounted) Navigator.pop(context);
-              },
-              child: const Text('Submit'),
-            ),
-          ],
-        );
-      },
+              content: _extractedText, difficulty: difficulty)),
     );
   }
 
@@ -511,7 +484,6 @@ class _DashboardScreenState extends State<DashboardScreen>
                       child: _buildProfileHeader(theme, user.uid),
                     ),
                   ),
-
                 Expanded(
                   child: Padding(
                     padding: EdgeInsets.symmetric(
@@ -519,16 +491,17 @@ class _DashboardScreenState extends State<DashboardScreen>
                     child: _buildChatArea(theme),
                   ),
                 ),
-
-                // 2. Wrap the Review section too!
-                Visibility(
-                  visible: !isKeyboardOpen,
-                  child: Padding(
-                    padding: EdgeInsets.fromLTRB(theme.interactivePadding, 8,
-                        theme.interactivePadding, theme.interactivePadding),
-                    child: _buildReviewSection(theme),
+                                // 2. Wrap the Review section in Flexible so it shrinks/scrolls instead of overflowing!
+                Flexible(
+                  child: SingleChildScrollView(
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(theme.interactivePadding, 8,
+                          theme.interactivePadding, theme.interactivePadding),
+                      child: _buildReviewSection(theme),
+                    ),
                   ),
                 ),
+
               ],
             ),
           ),
@@ -624,8 +597,6 @@ class _DashboardScreenState extends State<DashboardScreen>
         final xp = (data['xp'] ?? 0) as int;
         final level = data['level'] ?? 1;
         final streak = data['streak'] ?? 0;
-        final xpProgress = (xp % 500) / 500;
-
         WidgetsBinding.instance
             .addPostFrameCallback((_) => _checkXpMilestone(xp));
 
@@ -664,7 +635,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                       ],
                     ),
                     const SizedBox(height: 4),
-                    XpBar(progress: xpProgress),
+                    XpBar(totalXp: xp),
                   ],
                 ),
               ),
@@ -747,7 +718,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-    Widget _buildSuggestionCard(
+  Widget _buildSuggestionCard(
       DynamicTheme theme, String emoji, String title, String subtitle) {
     return GestureDetector(
       onTap: () {
@@ -756,12 +727,11 @@ class _DashboardScreenState extends State<DashboardScreen>
         } else if (title == 'Quiz me') {
           // If Quiz, pop up the difficulty dialog directly!
           if (_extractedText.isEmpty) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: const Text('Please upload a PDF first to use this feature!'), 
-                backgroundColor: theme.primaryColor,
-              )
-            );
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content:
+                  const Text('Please upload a PDF first to use this feature!'),
+              backgroundColor: theme.primaryColor,
+            ));
             return;
           }
           _showDifficultyDialog();
@@ -805,8 +775,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-
-    // ── Messages List ─────────────────────────────────────────────────────────
+  // ── Messages List ─────────────────────────────────────────────────────────
   Widget _buildMessagesList(DynamicTheme theme) {
     return ListView.builder(
       controller: _scrollController,
@@ -824,7 +793,7 @@ class _DashboardScreenState extends State<DashboardScreen>
 
         final msg = _messages[index];
         final isUser = msg['role'] == 'user';
-        
+
         // 1. Perfectly handles legacy chats! If it sees an old "Awesome Job" trigger, it renders an invisible 0px box instead of a broken text bubble.
         if (msg['role'] == 'system_action') return const SizedBox.shrink();
 
@@ -837,7 +806,6 @@ class _DashboardScreenState extends State<DashboardScreen>
       },
     );
   }
-
 
   Widget _buildUserTypingBubble(DynamicTheme theme) {
     return Padding(
@@ -1049,11 +1017,12 @@ class _DashboardScreenState extends State<DashboardScreen>
           final chip = chips[index];
           return GestureDetector(
             onTap: () {
-             // 1. Strict Empty PDF Validation
+              // 1. Strict Empty PDF Validation
               if (_extractedText.isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: const Text('Please upload a PDF first to use this feature!'),
+                    content: const Text(
+                        'Please upload a PDF first to use this feature!'),
                     backgroundColor: theme.primaryColor,
                     behavior: SnackBarBehavior.floating,
                   ),
@@ -1430,30 +1399,6 @@ class _DashboardScreenState extends State<DashboardScreen>
                 ),
               ),
               const SizedBox(width: 8),
-              GestureDetector(
-                onTap: _showReviewDialog,
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: theme.primaryColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                        color: theme.primaryColor.withValues(alpha: 0.3)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.edit_outlined,
-                          size: 13, color: theme.primaryColor),
-                      const SizedBox(width: 4),
-                      Text('Write a review',
-                          style: theme.bodyStyle.copyWith(
-                              fontSize: 12, color: theme.primaryColor)),
-                    ],
-                  ),
-                ),
-              ),
             ],
           ),
           const SizedBox(height: 10),
@@ -1510,12 +1455,31 @@ class _DashboardScreenState extends State<DashboardScreen>
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: () {
+                onPressed: () async {
+                  // Connect to Firestore Backend seamlessly
+                  if (_reviewStars > 0) {
+                    try {
+                      await FirebaseFirestore.instance
+                          .collection('reviews')
+                          .add({
+                        'userId': _firestoreService.currentUser?.uid,
+                        'text': _reviewController.text.trim(),
+                        'rating': _reviewStars,
+                        'timestamp': FieldValue.serverTimestamp(),
+                      });
+                    } catch (e) {
+                      AppLogger.error('Failed to save review', error: e);
+                    }
+                  }
+
+                  // Trigger visual success states seamlessly
                   setState(() => _reviewSubmitted = true);
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                    content: Text('⭐ ${'★' * _reviewStars} — Thank you!'),
-                    backgroundColor: theme.primaryColor,
-                  ));
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                      content: Text('⭐ ${'★' * _reviewStars} — Thank you!'),
+                      backgroundColor: theme.primaryColor,
+                    ));
+                  }
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: theme.primaryColor,
@@ -1533,22 +1497,24 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-
   // ── SilentActionChips ───────────────────────────────────────────────────────────
-    Future<void> _executeQuickActionSilently(String prompt, DynamicTheme theme) async {
+  Future<void> _executeQuickActionSilently(
+      String prompt, DynamicTheme theme) async {
     if (_activeSessionId == null || _extractedText.isEmpty) return;
-    
+
     final sessionId = _activeSessionId!;
     // Start the thinking animation instantly
     setState(() => _isAiTyping = true);
     _scrollToBottom();
-    
+
     try {
       // 1. Silent Context Binding: The massive PDF is sent in the background!
-      final aiPrompt = "$prompt\n\n### SOURCE MATERIAL ###\n$_extractedText\n### END SOURCE MATERIAL ###";
-      
+      final aiPrompt =
+          "$prompt\n\n### SOURCE MATERIAL ###\n$_extractedText\n### END SOURCE MATERIAL ###";
+
       // 2. Fetch directly from AI
-      final response = await _aiService.chatWithAI(aiPrompt, theme.traits.learningProfileName);
+      final response = await _aiService.chatWithAI(
+          aiPrompt, theme.traits.learningProfileName);
 
       // 3. Save ONLY the AI response. No user prompt bubble is created!
       await _firestoreService.saveChatMessage(sessionId, 'ai', response);
@@ -1564,7 +1530,6 @@ class _DashboardScreenState extends State<DashboardScreen>
       AppLogger.error('Quick Action Failed', error: e);
     }
   }
-
 
   // ── Send Message ──────────────────────────────────────────────────────────
   void _sendMessage(DynamicTheme theme) async {
@@ -2257,14 +2222,15 @@ class _TypewriterMarkdownState extends State<TypewriterMarkdown> {
         }
         return;
       }
-      
+
       // Process chunks to keep the 60fps frame rate perfectly smooth
       final batchSize = _safeRunes.length > 1000 ? 4 : 1;
       _currentIndex = (_currentIndex + batchSize).clamp(0, _safeRunes.length);
 
       setState(() {
         // High-performance, emoji-safe rune splicing
-        _displayedText = String.fromCharCodes(_safeRunes.sublist(0, _currentIndex));
+        _displayedText =
+            String.fromCharCodes(_safeRunes.sublist(0, _currentIndex));
       });
     });
   }
@@ -2285,4 +2251,3 @@ class _TypewriterMarkdownState extends State<TypewriterMarkdown> {
     );
   }
 }
-

@@ -9,7 +9,7 @@ class GamificationService {
   static const int xpPerCorrectAnswer = 10;
   static const int xpPerLevel = 500;
 
-  Future<void> awardXP(int amount) async {
+    Future<void> awardXP(int amount) async {
     final user = _auth.currentUser;
     if (user == null) return;
 
@@ -19,17 +19,54 @@ class GamificationService {
       final snapshot = await transaction.get(docRef);
       if (!snapshot.exists) return;
 
-      int currentXP = snapshot.data()?['xp'] ?? 0;
+      final data = snapshot.data();
+      int currentXP = data?['xp'] ?? 0;
       int newXP = currentXP + amount;
       int newLevel = (newXP / xpPerLevel).floor() + 1;
 
-      transaction.update(docRef, {
+      // ── XP-RANK FEATURE INTEGRATION ─────────────────────────────────────────
+      // Read the user's existing badges safely
+      List<dynamic> existingBadges = data?['badges'] ?? [];
+      bool hasBadge(String id) => existingBadges.any((b) => b is Map && b['id'] == id);
+      
+      List<Map<String, dynamic>> newlyEarnedRanks = [];
+      
+      // Helper to cleanly award rank badges
+      void checkRank(int threshold, String rankName) {
+        if (newXP >= threshold && !hasBadge(rankName)) {
+           newlyEarnedRanks.add({
+             'id': rankName,
+             'name': rankName,
+             'earnedAt': DateTime.now().toIso8601String(),
+           });
+        }
+      }
+
+      // The XP Thresholds from the xp-branch
+      checkRank(100, 'Newbie');
+      checkRank(200, 'Rookie');
+      checkRank(400, 'Apprentice');
+      checkRank(1000, 'Practitioner');
+      checkRank(2500, 'Master');
+      // ────────────────────────────────────────────────────────────────────────
+
+      // Prepare the database update payload
+      Map<String, dynamic> updates = {
         'xp': newXP,
         'level': newLevel,
         'lastUpdated': FieldValue.serverTimestamp(),
-      });
+      };
+
+      // If they just unlocked a new Rank, safely merge it into their badge list
+      if (newlyEarnedRanks.isNotEmpty) {
+        updates['badges'] = FieldValue.arrayUnion(newlyEarnedRanks);
+      }
+
+      // Commit the transaction
+      transaction.update(docRef, updates);
     });
   }
+
 
   Future<void> awardBadge(String badgeId, String badgeName) async {
     final user = _auth.currentUser;

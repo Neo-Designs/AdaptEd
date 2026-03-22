@@ -310,7 +310,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ],
           ),
           const SizedBox(height: 16),
-          XpBar(progress: xpProgress),
+          XpBar(totalXp: xp),
         ],
       ),
     );
