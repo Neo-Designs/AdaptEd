@@ -348,40 +348,54 @@ class AIService {
     }
   }
 
-  // Generate multiple-choice questions based on the content
+    // Generate multiple-choice questions based on the content
   Future<List<Map<String, dynamic>>> generateMultipleChoiceQuiz(
       String content, {String difficulty = 'MEDIUM'}) async {
-     final prompt =
+    final prompt =
         "Generate exactly 10 $difficulty level multiple-choice questions based on the following text. "
-        "Return ONLY a JSON array of objects. Each object must have a 'question' (string), "
+        "Return ONLY a raw JSON array of objects. Each object must have a 'question' (string), "
         "'options' (an array of exactly 4 strings), and 'correctIndex' (integer 0-3 indicating the correct option).\n\nContent:\n$content";
 
     try {
       final response = await _callGroqAPI(prompt);
-      String cleaned = response;
-
-      if (response.contains('```json')) {
-        cleaned = response.split('```json')[1].split('```')[0].trim();
-      } else if (response.contains('```')) {
-        cleaned = response.split('```')[1].split('```')[0].trim();
+      
+      // Pass along any direct HTTP Errors so the UI SnackBar catches them
+      if (response.startsWith("Error") || response.startsWith("API Error") || 
+          response.startsWith("Network Error") || response.startsWith("Config Error")) {
+        throw Exception(response);
       }
 
-      if (!cleaned.startsWith('[')) {
-        final startIndex = cleaned.indexOf('[');
-        final endIndex = cleaned.lastIndexOf(']');
-        if (startIndex != -1 && endIndex != -1) {
-          cleaned = cleaned.substring(startIndex, endIndex + 1);
-        }
+      String cleaned = response.trim();
+
+      // Aggressively aggressively strip out any conversational markdown Groq might have added
+      if (cleaned.contains('```json')) {
+        cleaned = cleaned.split('```json')[1].split('```')[0].trim();
+      } else if (cleaned.contains('```')) {
+        cleaned = cleaned.split('```')[1].split('```')[0].trim();
+      }
+
+      // Isolate the exact array wrapper
+      final startIndex = cleaned.indexOf('[');
+      final endIndex = cleaned.lastIndexOf(']');
+      
+      if (startIndex != -1 && endIndex != -1 && endIndex > startIndex) {
+        cleaned = cleaned.substring(startIndex, endIndex + 1);
+      } else {
+        throw Exception("Groq failed to output a verifiable JSON array.");
       }
 
       final List<dynamic> data = jsonDecode(cleaned);
-      return data.cast<Map<String, dynamic>>();
+      // Safely map instead of blind casting to avoid _TypeError in Dart
+      return data.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      
     } catch (e, stack) {
       AppLogger.error('Multiple choice quiz generation failed',
           tag: 'AIService', error: e, stackTrace: stack);
-      return [];
+      // Throwing the error up guarantees the UI SnackBar tells you EXACTLY what broke!
+      throw Exception('AI Parsing Error: $e'); 
     }
   }
+
 
   // --- 4. RETRY LOGIC & PRIVATE API CALLERS ---
 

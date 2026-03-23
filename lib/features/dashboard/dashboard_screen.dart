@@ -40,6 +40,7 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   List<Map<String, dynamic>> _messages = [];
 
+
   // ── Session management ────────────────────────────────────────────────────
   String? _activeSessionId;
   StreamSubscription<QuerySnapshot>? _chatSubscription;
@@ -109,6 +110,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     _reviewController.dispose();
     _chatController.dispose();
     _scrollController.dispose();
+    _speech.stop();
     _flutterTts.stop();
     super.dispose();
   }
@@ -468,43 +470,50 @@ class _DashboardScreenState extends State<DashboardScreen>
         Scaffold(
           backgroundColor: theme.backgroundColor,
           drawer: _buildChatsDrawer(theme),
-          body: SafeArea(
-            child: Column(
-              children: [
-                if (user != null)
-                  // 1. Swap the 'if' for a Visibility wrapper!
-                  Visibility(
-                    visible: !isKeyboardOpen,
-                    child: Padding(
-                      padding: EdgeInsets.fromLTRB(
-                          theme.interactivePadding,
-                          theme.interactivePadding,
-                          theme.interactivePadding,
-                          0),
-                      child: _buildProfileHeader(theme, user.uid),
+                body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            // Guarantee at least 650 pixels of intrinsic height!
+            // This prevents BOTH the 2.6px overflow and the Keyboard clipping!
+            final double safeHeight = constraints.maxHeight < 650 ? 650 : constraints.maxHeight;
+
+            return SingleChildScrollView(
+              physics: const ClampingScrollPhysics(), // Stops bounce effects on static screens
+              child: SizedBox(
+                height: safeHeight,
+                child: Column(
+                  children: [
+                    if (user != null)
+                      Padding(
+                        padding: EdgeInsets.fromLTRB(theme.interactivePadding,
+                            theme.interactivePadding, theme.interactivePadding, 0),
+                        child: _buildProfileHeader(theme, user.uid),
+                      ),
+                    const SizedBox(height: 16),
+                    
+                    // Chat Area dynamically fills available safeHeight
+                    Expanded(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(
+                            horizontal: theme.interactivePadding),
+                        child: _buildChatArea(theme),
+                      ),
                     ),
-                  ),
-                Expanded(
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(
-                        horizontal: theme.interactivePadding),
-                    child: _buildChatArea(theme),
-                  ),
-                ),
-                                // 2. Wrap the Review section in Flexible so it shrinks/scrolls instead of overflowing!
-                Flexible(
-                  child: SingleChildScrollView(
-                    child: Padding(
+                    
+                    // Review Section sits safely at the bottom
+                    Padding(
                       padding: EdgeInsets.fromLTRB(theme.interactivePadding, 8,
                           theme.interactivePadding, theme.interactivePadding),
                       child: _buildReviewSection(theme),
                     ),
-                  ),
+                  ],
                 ),
+              ),
+            );
+          },
+        ),
+      ),
 
-              ],
-            ),
-          ),
         ),
         if (theme.readingRuler)
           _ReadingRuler(
@@ -1794,9 +1803,8 @@ class _DashboardScreenState extends State<DashboardScreen>
   // ── Neuro Card ────────────────────────────────────────────────────────────
   Widget _buildNeuroCard(
       String title, String content, String icon, DynamicTheme theme) {
-    Color bgColor = const Color(0xFFF8FAFC);
-    if (theme.traits.isADHD) bgColor = const Color(0xFFFDF2F2);
-    if (theme.traits.isAutistic) bgColor = const Color(0xFFF0F4FF);
+      final Color bgColor = theme.surfaceVariantColor;
+
 
     final cardTextColor = theme.isDarkMode ? Colors.white : Colors.black87;
     TextStyle baseTextStyle;

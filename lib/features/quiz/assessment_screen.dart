@@ -1,4 +1,6 @@
+import 'package:adapted/core/theme/dynamic_theme.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../core/services/ai_service.dart';
 import '../../core/services/gamification_service.dart';
@@ -62,6 +64,7 @@ final quiz = await _aiService.generateMultipleChoiceQuiz(widget.content!, diffic
 
   @override
   Widget build(BuildContext context) {
+    final theme = Provider.of<DynamicTheme>(context);
     return Scaffold(
       appBar: AppBar(title: const Text('Knowledge Assessment')),
       body: _isLoading
@@ -109,9 +112,9 @@ final quiz = await _aiService.generateMultipleChoiceQuiz(widget.content!, diffic
                                 Color? textColor;
                                 if (_submitted) {
                                   if (isCorrect) {
-                                    textColor = Colors.green; // Highlight correct answer
+                                    textColor = theme.successColor; // Highlight correct answer
                                   } else if (isSelected && !isCorrect) {
-                                    textColor = Colors.red; // Highlight wrong selection
+                                    textColor = theme.errorColor; // Highlight wrong selection
                                   }
                                 }
                                 return RadioListTile<int>(
@@ -129,8 +132,14 @@ final quiz = await _aiService.generateMultipleChoiceQuiz(widget.content!, diffic
                                       _answers[index] = val!;
                                     });
                                   },
-                                  secondary: _submitted ? (isCorrect ? const Icon(Icons.check_circle, color: Colors.green) :
-                                   isSelected ? const Icon(Icons.cancel, color: Colors.red) : null) : null,
+                                    secondary: _submitted 
+                                                ? (isCorrect 
+                                                ? Icon(Icons.check_circle, color: theme.successColor) // <-- NO const
+                                                    : isSelected 
+                                                          ? Icon(Icons.cancel, color: theme.errorColor)     // <-- NO const
+                                                          : null) 
+                                                  : null,
+
                                 );
                               })
                             ],

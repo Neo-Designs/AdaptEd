@@ -517,9 +517,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
   Widget _buildNeuroCard(
       String title, String content, String icon, DynamicTheme theme) {
-    Color bgColor = const Color(0xFFF8FAFC);
-    if (theme.traits.isADHD) bgColor = const Color(0xFFFDF2F2);
-    if (theme.traits.isAutistic) bgColor = const Color(0xFFF0F4FF);
+
+    Color bgColor = theme.surfaceVariantColor;
 
     TextStyle baseTextStyle;
     if (theme.traits.isDyslexic) {

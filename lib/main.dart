@@ -23,6 +23,8 @@ import 'features/quiz/quiz_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'firebase_options.dart';
 
+
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   setupGlobalErrorHandling();
@@ -56,15 +58,34 @@ void main() async {
   );
 }
 
-class AdaptEdApp extends StatelessWidget {
+class AdaptEdApp extends StatefulWidget {
   const AdaptEdApp({super.key});
+
+  // This powerful static method allows us to explicitly restart the entire app state
+  static void restartApp(BuildContext context) {
+    context.findAncestorStateOfType<_AdaptEdAppState>()?.restartApp();
+  }
+
+  @override
+  State<AdaptEdApp> createState() => _AdaptEdAppState();
+}
+
+class _AdaptEdAppState extends State<AdaptEdApp> {
+  // A UniqueKey attached to MaterialApp forces the framework to destroy and rebuild everything if it changes
+  Key _key = UniqueKey();
+
+  void restartApp() {
+    setState(() {
+      _key = UniqueKey();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    // context.watch() triggers a full rebuild when theme changes
     final theme = context.watch<DynamicTheme>();
 
     return MaterialApp(
+      key: _key, // <-- This guarantees a complete memory flush on logout!
       title: 'AdaptEd',
       theme: theme.themeData,
       debugShowCheckedModeBanner: false,
@@ -81,6 +102,7 @@ class AdaptEdApp extends StatelessWidget {
     );
   }
 }
+
 
 class AuthWrapper extends StatelessWidget {
   final String? route;
@@ -115,19 +137,17 @@ class AuthWrapper extends StatelessWidget {
         // 4. Sync traits → DynamicTheme
         _syncTraitsToTheme(context, userService);
 
-        // 5. Role-based routing
+        // 5. THIS IS THE NEW ADMIN ROUTING OVERRIDE!
         if (role == 'admin') {
           if (route == '/' || route == '/dashboard' || route == '/admin') {
             return const AdminDashboardScreen();
           }
         }
-
         // 6. First-time learner → Quiz
         if (userService.currentTraits == null) {
           return const QuizIntroductionScreen();
         }
-
-        // 7. Main app shell
+        // 7. Main app shell (For standard learners)
         return AdaptiveLayoutShell(
           child: _getPageForRoute(route, arguments),
         );
@@ -173,13 +193,17 @@ class LoginScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SignInScreen(
-      providers: [EmailAuthProvider()],
-      actions: [
-        AuthStateChangeAction<SignedIn>((context, state) {
-          // UserService handles data fetching on next stream update
-        }),
-      ],
+    return HeroMode(
+      enabled: false, // <-- THIS IS THE MAGIC FIX. Kills the animation deadlock!
+      child: SignInScreen(
+        providers: [EmailAuthProvider()],
+        actions: [
+          AuthStateChangeAction<SignedIn>((context, state) {
+            // UserService handles data fetching on next stream update
+          }),
+        ],
+      ),
     );
   }
 }
+

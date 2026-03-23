@@ -176,6 +176,19 @@ class DynamicTheme extends ChangeNotifier {
     return const Color(0xFFF8FAFC);
   }
 
+
+    Color get surfaceVariantColor {
+    if (traits.isADHD) return const Color(0xFFFDF2F2);
+    if (traits.isAutistic) return const Color(0xFFF0F4FF);
+    if (traits.isDyslexic) return const Color(0xFFFEF6E4);
+    if (traits.isDyspraxic) return const Color(0xFFF6F8FA);
+    return isDarkMode ? cardColor : const Color(0xFFF8FAFC);
+  }
+
+  Color get successColor => isDarkMode ? Colors.green[400]! : Colors.green[600]!;
+  Color get errorColor => isDarkMode ? Colors.red[300]! : Colors.red[500]!;
+
+
   Color get scaffoldBackgroundColor => backgroundColor;
 
   Color get cardColor {

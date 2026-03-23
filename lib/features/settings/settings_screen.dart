@@ -1,7 +1,9 @@
 import 'package:adapted/core/theme/dynamic_theme.dart';
 import 'package:adapted/core/widgets/adapted_card.dart';
+import 'package:adapted/main.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -135,34 +137,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
 
             const SizedBox(height: 24),
+            // ── Log Out Button ──────────────────────────────────────────────
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.logout, color: Colors.white),
+                label: Text('Log Out', style: theme.buttonTextStyle),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: theme.isDarkMode ? Colors.red[500] : Colors.red[400],
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  elevation: 0,
+                ),
+                                onPressed: () {
+                  // 1. Release the touch focus
+                  FocusManager.instance.primaryFocus?.unfocus();
 
-            // ── Account ─────────────────────────────────────────────────────
-            _buildSectionHeader(theme, 'Account'),
-            AdaptedCard(
-              child: Column(
-                children: [
-                  ListTile(
-                    leading: Icon(Icons.person, color: theme.primaryColor),
-                    title: Text('Profile Settings', style: theme.bodyStyle),
-                    trailing: Icon(Icons.chevron_right,
-                        color: theme.onSurfaceTextColor.withValues(alpha: 0.4)),
-                    onTap: () => Navigator.pushNamed(context, '/profile'),
-                  ),
-                  _divider(theme),
-                  ListTile(
-                    leading: const Icon(Icons.logout, color: Colors.red),
-                    title: Text('Log Out',
-                        style: theme.bodyStyle.copyWith(color: Colors.red)),
-                    onTap: () async {
-                      await FirebaseAuth.instance.signOut();
-                      if (context.mounted) {
-                        Navigator.of(context).pushReplacementNamed('/');
-                      }
-                    },
-                  ),
-                ],
+                  // 2. Wait exactly 150 milliseconds for the tap ripple animation to finish,
+                  // then quietly execute the sign out in the background. 
+                  Future.delayed(const Duration(milliseconds: 150), () async {
+                    await FirebaseAuth.instance.signOut();
+                  });
+                },
+
               ),
             ),
+            const SizedBox(height: 32),
+
+            
 
             const SizedBox(height: 32),
           ],
