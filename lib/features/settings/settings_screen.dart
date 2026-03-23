@@ -1,6 +1,7 @@
 import 'package:adapted/core/theme/dynamic_theme.dart';
 import 'package:adapted/core/widgets/adapted_card.dart';
 import 'package:adapted/main.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -152,16 +153,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   elevation: 0,
                 ),
-                                onPressed: () {
-                  // 1. Release the touch focus
+                                  onPressed: () async {
                   FocusManager.instance.primaryFocus?.unfocus();
 
-                  // 2. Wait exactly 150 milliseconds for the tap ripple animation to finish,
-                  // then quietly execute the sign out in the background. 
-                  Future.delayed(const Duration(milliseconds: 150), () async {
-                    await FirebaseAuth.instance.signOut();
-                  });
+                  // 1. Show a quick visual spinner so the user knows it's thinking
+                  showDialog(
+                    context: context,
+                    barrierDismissible: false,
+                    builder: (context) => const Center(child: CircularProgressIndicator(color: Colors.red)),
+                  );
+
+                  // 2. FORCEFULLY terminate all active database streams BEFORE the token dies!
+                  // This entirely prevents the PERMISSION_DENIED barrage from crashing Android.
+                  await FirebaseFirestore.instance.terminate();
+                  await FirebaseFirestore.instance.clearPersistence();
+
+                  // 3. Now it is 100% safe to revoke the token.
+                  await FirebaseAuth.instance.signOut();
+                  
+                  // 4. Pop the spinner safely so the SignInScreen displays.
+                  if (context.mounted) Navigator.of(context).pop();
                 },
+
 
               ),
             ),
