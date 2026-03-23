@@ -15,29 +15,30 @@ class QuizIntroductionScreen extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: dt.backgroundColor,
+      // 1. Add the transparent AppBar here with the back arrow
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: dt.onSurfaceTextColor),
+          tooltip: 'Back to Login',
+          onPressed: () async {
+            // Instantly logs the user out and returns to SignInScreen
+            await FirebaseAuth.instance.signOut();
+          },
+        ),
+      ),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(24.0),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // ← Icon color reacts to traits
               Icon(Icons.psychology, size: 80, color: dt.primaryColor),
+
+              // 2. The old ElevatedButton has been completely deleted from here!
               const SizedBox(height: 32),
-              ElevatedButton(
-                  onPressed: () async {
-                    await FirebaseAuth.instance.signOut();
-                  },
-                  style:
-                      ElevatedButton.styleFrom(backgroundColor: Colors.white),
-                  child: const Text(
-                    "Back To Login",
-                    style: TextStyle(
-                      fontFamily: 'Roboto',
-                      fontSize: 14,
-                      color: Colors.black,
-                    ),
-                  )),
+
               Text(
                 "We'd love to learn about how you learn!",
                 style: dt.titleStyle,
@@ -51,7 +52,7 @@ class QuizIntroductionScreen extends StatelessWidget {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 48),
-              // ← AdaptedButton replaces ElevatedButton
+
               AdaptedButton(
                 label: 'Start Quiz',
                 onPressed: () {

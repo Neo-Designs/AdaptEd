@@ -30,25 +30,34 @@ class UserService extends ChangeNotifier {
     });
   }
 
-  Future<void> _loadUserProfile() async {
+    Future<void> _loadUserProfile() async {
     final user = _auth.currentUser;
     if (user == null) return;
 
     try {
+      // 1. HYPER-OVERRIDE: Instantly check if this is an admin email directly from auth.
+      // This guarantees they bypass the quiz flow even if their database file has never been generated!
+      if (user.email != null && user.email!.toLowerCase().startsWith('admin')) {
+         _role = 'admin';
+      }
+
       final doc = await _firestore.collection('users').doc(user.uid).get();
       if (doc.exists && doc.data() != null) {
         final data = doc.data()!;
         if (data.containsKey('traits')) {
           _currentTraits = UserTraits.fromJson(data['traits']);
         }
-        _role = data['role'] ?? 'learner';
+        // If the database has a role securely saved, respect it, otherwise fallback to our check
+        _role = data['role'] ?? _role;
       }
+      
       _isInitialized = true;
       notifyListeners();
     } catch (e, stack) {
       AppLogger.error('Failed to load user profile', tag: 'UserService', error: e, stackTrace: stack);
     }
   }
+
 
   Future<void> saveUserProfile(UserTraits traits) async {
     final user = _auth.currentUser;

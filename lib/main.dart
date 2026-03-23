@@ -139,9 +139,8 @@ class AuthWrapper extends StatelessWidget {
 
         // 5. THIS IS THE NEW ADMIN ROUTING OVERRIDE!
         if (role == 'admin') {
-          if (route == '/' || route == '/dashboard' || route == '/admin') {
             return const AdminDashboardScreen();
-          }
+          
         }
         // 6. First-time learner → Quiz
         if (userService.currentTraits == null) {
