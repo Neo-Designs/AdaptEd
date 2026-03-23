@@ -13,6 +13,7 @@ import 'package:adapted/features/quiz/assessment_screen.dart';
 import 'package:adapted/features/screening/scoring_engine.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter_tts/flutter_tts.dart';
@@ -37,6 +38,8 @@ class _DashboardScreenState extends State<DashboardScreen>
   final FirestoreService _firestoreService = FirestoreService();
   final FlutterTts _flutterTts = FlutterTts();
   final stt.SpeechToText _speech = stt.SpeechToText();
+  final FocusNode _chatFocusNode = FocusNode();
+  final FocusNode _reviewFocusNode = FocusNode();
 
   List<Map<String, dynamic>> _messages = [];
 
@@ -107,6 +110,8 @@ class _DashboardScreenState extends State<DashboardScreen>
   void dispose() {
     _typingTimer?.cancel();
     _chatSubscription?.cancel();
+    _chatFocusNode.dispose();
+    _reviewFocusNode.dispose();
     _reviewController.dispose();
     _chatController.dispose();
     _scrollController.dispose();
@@ -326,9 +331,8 @@ class _DashboardScreenState extends State<DashboardScreen>
     // 1. Break the text into safe Unicode runes (this prevents slicing emojis in half!)
     final safeRunes = fullText.runes.toList();
 
-    final delay = safeRunes.length > 200
-        ? const Duration(milliseconds: 3)
-        : const Duration(milliseconds: 18);
+    final delay = const Duration(milliseconds: 30);
+    final int batchSize = safeRunes.length > 500 ? 15 : 3;
 
     _typingTimer = Timer.periodic(delay, (timer) {
       if (!mounted) {
@@ -906,6 +910,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                 Expanded(
                   child: TextField(
                     controller: _chatController,
+                    focusNode: _chatFocusNode,
                     maxLines: 4,
                     minLines: 1,
                     textInputAction: TextInputAction.newline,
@@ -1435,6 +1440,7 @@ class _DashboardScreenState extends State<DashboardScreen>
             const SizedBox(height: 10),
             TextField(
               controller: _reviewController,
+              focusNode: _reviewFocusNode,
               maxLines: 2,
               decoration: InputDecoration(
                 hintText: 'Tell us about your experience (optional)...',
@@ -1638,13 +1644,14 @@ class _DashboardScreenState extends State<DashboardScreen>
       try {
         final results = await Future.wait([
           _firestoreService.uploadPdfToStorage(bytes, fileName, user.uid),
-          Future(() {
-            final PdfDocument document = PdfDocument(inputBytes: bytes);
+          // Use 'compute' to run text extraction in the background so the app doesn't freeze!
+          compute((Uint8List b) {
+            final PdfDocument document = PdfDocument(inputBytes: b);
             final text = PdfTextExtractor(document).extractText();
             document.dispose();
             return text;
-          }),
-        ]);
+          }, bytes),
+        ]);;
         fileUrl = results[0];
         extractedText = results[1];
         setState(() => _extractedText = extractedText);
