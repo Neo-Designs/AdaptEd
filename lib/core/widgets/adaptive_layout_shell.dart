@@ -117,11 +117,14 @@ class _AdaptiveLayoutShellState extends State<AdaptiveLayoutShell> {
               style: theme.titleStyle,
             ),
             actions: [
-              IconButton(
-                onPressed: () =>
-                    context.read<DynamicTheme>().toggleDyslexicFont(),
-                icon: Icon(Icons.abc, color: theme.primaryColor),
+                            IconButton(
+                onPressed: () => context.read<DynamicTheme>().toggleDarkMode(),
+                icon: Icon(
+                  theme.isDarkMode ? Icons.light_mode : Icons.dark_mode,
+                  color: theme.primaryColor,
+                ),
               ),
+
               IconButton(
                 onPressed: () => context.read<DynamicTheme>().toggleFocusMode(),
                 icon: Icon(

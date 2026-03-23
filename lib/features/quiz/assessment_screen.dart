@@ -1,3 +1,4 @@
+import 'package:adapted/core/services/firestore_service.dart';
 import 'package:adapted/core/theme/dynamic_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -17,6 +18,8 @@ class AssessmentScreen extends StatefulWidget {
 class _AssessmentScreenState extends State<AssessmentScreen> {
   final AIService _aiService = AIService();
   final GamificationService _gamificationService = GamificationService();
+    final FirestoreService _firestoreService = FirestoreService(); // <-- ADD THIS LINE
+
 
   List<Map<String, dynamic>> _questions = [];
   bool _isLoading = true;
@@ -166,8 +169,22 @@ final quiz = await _aiService.generateMultipleChoiceQuiz(widget.content!, diffic
                               _score = correctCount;
                             });
 
-                            await _gamificationService.awardXP(correctCount *
-                                GamificationService.xpPerCorrectAnswer);
+                                                        // 1. Calculate difficulty multiplier
+                            int diffLevel = 2; // Default MEDIUM
+                            if (widget.difficulty == 'HARD') diffLevel = 3;
+                            if (widget.difficulty == 'EASY') diffLevel = 1;
+
+                            // 2. Submit the full payload to Firestore Analytics!
+                            // (Note: this function automatically triggers GamificationService to award XP, 
+                            // so we don't have to call it twice!)
+                            await _firestoreService.submitQuizResult(
+                              quizId: DateTime.now().millisecondsSinceEpoch.toString(),
+                              correctAnswers: correctCount,
+                              totalQuestions: _questions.length,
+                              difficultyLevel: diffLevel, 
+                              longestStreak: 0,
+                            );
+
 
                             if (!context.mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(
