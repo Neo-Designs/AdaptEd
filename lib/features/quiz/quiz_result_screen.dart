@@ -14,8 +14,7 @@ class QuizResultScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Access theme to update it with new traits if not already done
-    // In a real app, traits would be passed and theme updated here or before navigation
+    
 
     return Scaffold(
       backgroundColor: Colors.white,

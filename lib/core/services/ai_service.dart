@@ -73,9 +73,6 @@ class AIService {
   }
 
   /// Generates a neurodivergent-adapted summary using Grounded Context Injection.
-  ///
-  /// The extracted text is wrapped in delimiters so the model has a clear
-  /// "Source of Truth" and never apologises for not being able to read a file.
   Future<String> generateAdaptiveSummary(
     String content, {
     required bool isADHD,

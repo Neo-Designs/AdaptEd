@@ -11,13 +11,7 @@ class AppLogger {
       if (stackTrace != null) print('StackTrace: $stackTrace');
     }
     
-    // In a real industrial app, we would send this to Sentry, Firebase Crashlytics, etc.
-    // if (!kDebugMode) {
-    //   FirebaseCrashlytics.instance.log(message);
-    //   if (error != null) {
-    //     FirebaseCrashlytics.instance.recordError(error, stackTrace);
-    //   }
-    // }
+    
   }
 
   static void info(String message, {String? tag}) => log('INFO: $message', tag: tag);

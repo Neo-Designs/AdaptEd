@@ -30,7 +30,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
   @override
   void initState() {
     super.initState();
-    // Cache the stream directly inside init state so the list does not flicker randomly!
+    
     _materialsStream = _firestoreService.getLearningMaterials();
   }
 

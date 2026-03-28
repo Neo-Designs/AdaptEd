@@ -156,22 +156,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   onPressed: () async {
                   FocusManager.instance.primaryFocus?.unfocus();
 
-                  // 1. Show a quick visual spinner so the user knows it's thinking
+                  
                   showDialog(
                     context: context,
                     barrierDismissible: false,
                     builder: (context) => const Center(child: CircularProgressIndicator(color: Colors.red)),
                   );
 
-                  // 2. FORCEFULLY terminate all active database streams BEFORE the token dies!
-                  // This entirely prevents the PERMISSION_DENIED barrage from crashing Android.
+                  
                   await FirebaseFirestore.instance.terminate();
                   await FirebaseFirestore.instance.clearPersistence();
 
-                  // 3. Now it is 100% safe to revoke the token.
                   await FirebaseAuth.instance.signOut();
                   
-                  // 4. Pop the spinner safely so the SignInScreen displays.
                   if (context.mounted) Navigator.of(context).pop();
                 },
 

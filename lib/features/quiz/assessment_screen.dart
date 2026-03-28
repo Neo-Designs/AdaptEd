@@ -169,14 +169,12 @@ final quiz = await _aiService.generateMultipleChoiceQuiz(widget.content!, diffic
                               _score = correctCount;
                             });
 
-                                                        // 1. Calculate difficulty multiplier
+                                                      
                             int diffLevel = 2; // Default MEDIUM
                             if (widget.difficulty == 'HARD') diffLevel = 3;
                             if (widget.difficulty == 'EASY') diffLevel = 1;
 
-                            // 2. Submit the full payload to Firestore Analytics!
-                            // (Note: this function automatically triggers GamificationService to award XP, 
-                            // so we don't have to call it twice!)
+                            
                             await _firestoreService.submitQuizResult(
                               quizId: DateTime.now().millisecondsSinceEpoch.toString(),
                               correctAnswers: correctCount,

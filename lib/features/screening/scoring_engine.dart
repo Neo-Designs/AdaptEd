@@ -64,7 +64,6 @@ class UserTraits {
 }
 
 class ScoringEngine {
-  // Simplified buckets for the demo. Real implementation would track per-question.
   final Map<Trait, int> _scores = {
     Trait.autism: 0,
     Trait.adhd: 0,
@@ -72,8 +71,7 @@ class ScoringEngine {
     Trait.dyspraxia: 0,
   };
 
-  // Thresholds for activating a trait
-  static const int _threshold = 15; // Arbitrary score threshold
+  static const int _threshold = 15; 
 
   void answerQuestion(Trait relatedTrait, int weight) {
     _scores[relatedTrait] = (_scores[relatedTrait] ?? 0) + weight;
@@ -105,12 +103,10 @@ class ScoringEngine {
     return 'The versatile Learner';
   }
 
-  // Mock method to simulate a full quiz completion for testing
   void mockCompleteQuiz({required UserTraits targetTraits}) {
-    // Reset
+    
     _scores.updateAll((key, value) => 0);
     
-    // Set scores above threshold based on requested traits
     if (targetTraits.isAutistic) _scores[Trait.autism] = _threshold + 5;
     if (targetTraits.isADHD) _scores[Trait.adhd] = _threshold + 5;
     if (targetTraits.isDyslexic) _scores[Trait.dyslexia] = _threshold + 5;

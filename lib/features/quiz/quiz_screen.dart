@@ -46,8 +46,7 @@ class _QuizScreenState extends State<QuizScreen> {
 
         final traits = _engine.calculateProfile();
     
-    // Retrieve the global UserService instance from the Provider tree.
-    // listen: false gives us access to call methods without triggering a rebuild here.
+    
     final globalUserService = Provider.of<UserService>(context, listen: false);
     
     await globalUserService.saveUserProfile(traits);
@@ -87,7 +86,6 @@ class _QuizScreenState extends State<QuizScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // ← Get theme so quiz screen reacts to traits
     final dt = context.watch<DynamicTheme>();
 
     if (_isAnalyzing) {
@@ -110,7 +108,7 @@ class _QuizScreenState extends State<QuizScreen> {
     }
 
     return Scaffold(
-      backgroundColor: dt.backgroundColor, // ← trait-aware background
+      backgroundColor: dt.backgroundColor, 
       appBar: AppBar(
         title: Text(
           "Question ${_currentIndex + 1}/${_questions.length}",
@@ -149,7 +147,6 @@ class _QuizScreenState extends State<QuizScreen> {
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 48),
-                        // ← AdaptedButton replaces ElevatedButton
                         ...(question['answers'] as List<Map<String, dynamic>>)
                             .map((answer) {
                           return Padding(

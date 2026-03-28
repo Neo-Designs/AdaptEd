@@ -15,7 +15,6 @@ class QuizIntroductionScreen extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: dt.backgroundColor,
-      // 1. Add the transparent AppBar here with the back arrow
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -23,7 +22,6 @@ class QuizIntroductionScreen extends StatelessWidget {
           icon: Icon(Icons.arrow_back, color: dt.onSurfaceTextColor),
           tooltip: 'Back to Login',
           onPressed: () async {
-            // Instantly logs the user out and returns to SignInScreen
             await FirebaseAuth.instance.signOut();
           },
         ),
@@ -36,7 +34,6 @@ class QuizIntroductionScreen extends StatelessWidget {
             children: [
               Icon(Icons.psychology, size: 80, color: dt.primaryColor),
 
-              // 2. The old ElevatedButton has been completely deleted from here!
               const SizedBox(height: 32),
 
               Text(

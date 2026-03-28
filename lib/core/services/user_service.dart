@@ -35,8 +35,7 @@ class UserService extends ChangeNotifier {
     if (user == null) return;
 
     try {
-      // 1. HYPER-OVERRIDE: Instantly check if this is an admin email directly from auth.
-      // This guarantees they bypass the quiz flow even if their database file has never been generated!
+      
       if (user.email != null && user.email!.toLowerCase().startsWith('admin')) {
          _role = 'admin';
       }
@@ -47,7 +46,7 @@ class UserService extends ChangeNotifier {
         if (data.containsKey('traits')) {
           _currentTraits = UserTraits.fromJson(data['traits']);
         }
-        // If the database has a role securely saved, respect it, otherwise fallback to our check
+        
         _role = data['role'] ?? _role;
       }
       

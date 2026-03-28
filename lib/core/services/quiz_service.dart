@@ -1,7 +1,7 @@
 import '../../features/screening/scoring_engine.dart';
 
 class QuizService {
-  // Returns a list of 100 hardcoded questions for the assessment.
+  // Returns a list of 10 hardcoded questions for the assessment.
   // Covering Autism, ADHD, Dyslexia, and Dyspraxia.
   static List<Map<String, dynamic>> getQuestions() {
     return [

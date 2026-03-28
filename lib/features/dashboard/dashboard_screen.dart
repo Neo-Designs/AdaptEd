@@ -477,8 +477,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                 body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
-            // Guarantee at least 650 pixels of intrinsic height!
-            // This prevents BOTH the 2.6px overflow and the Keyboard clipping!
+            
             final double safeHeight = constraints.maxHeight < 650 ? 650 : constraints.maxHeight;
 
             return SingleChildScrollView(
@@ -807,7 +806,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         final msg = _messages[index];
         final isUser = msg['role'] == 'user';
 
-        // 1. Perfectly handles legacy chats! If it sees an old "Awesome Job" trigger, it renders an invisible 0px box instead of a broken text bubble.
+        
         if (msg['role'] == 'system_action') return const SizedBox.shrink();
 
         final isCurrentlyTyping = _typingMessageIndex == index;
@@ -887,7 +886,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // 2. Eradicate the 28px overflow risk by wiping chips from existence while typing!
+          
           Visibility(
             visible: !isKeyboardOpen,
             child: Padding(
@@ -1031,7 +1030,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           final chip = chips[index];
           return GestureDetector(
             onTap: () {
-              // 1. Strict Empty PDF Validation
+              
               if (_extractedText.isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
@@ -1518,25 +1517,25 @@ class _DashboardScreenState extends State<DashboardScreen>
     if (_activeSessionId == null || _extractedText.isEmpty) return;
 
     final sessionId = _activeSessionId!;
-    // Start the thinking animation instantly
+    
     setState(() => _isAiTyping = true);
     _scrollToBottom();
 
     try {
-      // 1. Silent Context Binding: The massive PDF is sent in the background!
+     
       final aiPrompt =
           "$prompt\n\n### SOURCE MATERIAL ###\n$_extractedText\n### END SOURCE MATERIAL ###";
 
-      // 2. Fetch directly from AI
+      
       final response = await _aiService.chatWithAI(
           aiPrompt, theme.traits.learningProfileName);
 
-      // 3. Save ONLY the AI response. No user prompt bubble is created!
+      
       await _firestoreService.saveChatMessage(sessionId, 'ai', response);
 
       if (mounted) {
         setState(() => _isAiTyping = false);
-        // Start the safe typewriter animation for the incoming response
+       
         final newIndex = _messages.length - 1;
         if (newIndex >= 0) _startTypingAnimation(newIndex, response);
       }
@@ -1644,7 +1643,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       try {
         final results = await Future.wait([
           _firestoreService.uploadPdfToStorage(bytes, fileName, user.uid),
-          // Use 'compute' to run text extraction in the background so the app doesn't freeze!
+          
           compute((Uint8List b) {
             final PdfDocument document = PdfDocument(inputBytes: b);
             final text = PdfTextExtractor(document).extractText();
@@ -1877,7 +1876,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     final double wSpacing = isDyslexic ? 2.0 : 0.0;
     const double hght = 1.6;
 
-    // ← Fix: use white in dark mode, black87 in light mode
+    
     final textColor = theme.isDarkMode ? Colors.white : Colors.black87;
 
     TextStyle baseTextStyle;
@@ -2203,7 +2202,7 @@ class _TypewriterMarkdownState extends State<TypewriterMarkdown> {
   int _currentIndex = 0;
   bool _isTyping = true;
   Timer? _timer;
-  List<int> _safeRunes = []; // Cache the runes for memory safety
+  List<int> _safeRunes = []; 
 
   @override
   void initState() {
@@ -2238,12 +2237,12 @@ class _TypewriterMarkdownState extends State<TypewriterMarkdown> {
         return;
       }
 
-      // Process chunks to keep the 60fps frame rate perfectly smooth
+      
       final batchSize = _safeRunes.length > 1000 ? 4 : 1;
       _currentIndex = (_currentIndex + batchSize).clamp(0, _safeRunes.length);
 
       setState(() {
-        // High-performance, emoji-safe rune splicing
+        
         _displayedText =
             String.fromCharCodes(_safeRunes.sublist(0, _currentIndex));
       });

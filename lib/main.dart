@@ -61,7 +61,6 @@ void main() async {
 class AdaptEdApp extends StatefulWidget {
   const AdaptEdApp({super.key});
 
-  // This powerful static method allows us to explicitly restart the entire app state
   static void restartApp(BuildContext context) {
     context.findAncestorStateOfType<_AdaptEdAppState>()?.restartApp();
   }
@@ -71,7 +70,7 @@ class AdaptEdApp extends StatefulWidget {
 }
 
 class _AdaptEdAppState extends State<AdaptEdApp> {
-  // A UniqueKey attached to MaterialApp forces the framework to destroy and rebuild everything if it changes
+  
   Key _key = UniqueKey();
 
   void restartApp() {
@@ -85,7 +84,7 @@ class _AdaptEdAppState extends State<AdaptEdApp> {
     final theme = context.watch<DynamicTheme>();
 
     return MaterialApp(
-      key: _key, // <-- This guarantees a complete memory flush on logout!
+      key: _key, //complete memory flush on logout!
       title: 'AdaptEd',
       theme: theme.themeData,
       debugShowCheckedModeBanner: false,
@@ -117,18 +116,15 @@ class AuthWrapper extends StatelessWidget {
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
-        // 1. Loading State
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
               body: Center(child: CircularProgressIndicator()));
         }
 
-        // 2. Unauthenticated → Login
         if (!snapshot.hasData) {
           return const LoginScreen();
         }
 
-        // 3. Wait for profile to load
         if (!userService.isInitialized) {
           return const Scaffold(
               body: Center(child: CircularProgressIndicator()));
@@ -137,16 +133,13 @@ class AuthWrapper extends StatelessWidget {
         // 4. Sync traits → DynamicTheme
         _syncTraitsToTheme(context, userService);
 
-        // 5. THIS IS THE NEW ADMIN ROUTING OVERRIDE!
         if (role == 'admin') {
             return const AdminDashboardScreen();
           
         }
-        // 6. First-time learner → Quiz
         if (userService.currentTraits == null) {
           return const QuizIntroductionScreen();
         }
-        // 7. Main app shell (For standard learners)
         return AdaptiveLayoutShell(
           child: _getPageForRoute(route, arguments),
         );
@@ -154,7 +147,6 @@ class AuthWrapper extends StatelessWidget {
     );
   }
 
-  // addPostFrameCallback ensures we don't call setState during build.
   void _syncTraitsToTheme(BuildContext context, UserService userService) {
     if (userService.currentTraits == null) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -193,12 +185,12 @@ class LoginScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return HeroMode(
-      enabled: false, // <-- THIS IS THE MAGIC FIX. Kills the animation deadlock!
+      enabled: false, 
       child: SignInScreen(
         providers: [EmailAuthProvider()],
         actions: [
           AuthStateChangeAction<SignedIn>((context, state) {
-            // UserService handles data fetching on next stream update
+            
           }),
         ],
       ),
