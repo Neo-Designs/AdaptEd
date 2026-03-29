@@ -78,7 +78,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             _buildCountCard(
               "Quizzes Generated", 
               Icons.quiz,
-              FirebaseFirestore.instance.collection('quizzes').snapshots().map((s) => s.docs.length.toString()),
+              FirebaseFirestore.instance.collectionGroup('quiz_results').snapshots().map((s) => s.docs.length.toString()),
             ),
           ],
         ),
@@ -114,6 +114,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                      return const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(strokeWidth: 2));
+                  }
+
+                  if (snapshot.hasError) {
+                     return const Text(
+                       "Err", 
+                       style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.red)
+                     );
                   }
                   return Text(
                     snapshot.data ?? "0", 
