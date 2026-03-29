@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../dashboard/dashboard_screen.dart';
 
 class QuizResultScreen extends StatelessWidget {
   final String profileName;

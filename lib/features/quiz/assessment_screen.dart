@@ -18,7 +18,7 @@ class AssessmentScreen extends StatefulWidget {
 class _AssessmentScreenState extends State<AssessmentScreen> {
   final AIService _aiService = AIService();
   final GamificationService _gamificationService = GamificationService();
-    final FirestoreService _firestoreService = FirestoreService(); // <-- ADD THIS LINE
+    final FirestoreService _firestoreService = FirestoreService(); 
 
 
   List<Map<String, dynamic>> _questions = [];

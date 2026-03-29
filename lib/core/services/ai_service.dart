@@ -356,7 +356,7 @@ class AIService {
     try {
       final response = await _callGroqAPI(prompt);
       
-      // Pass along any direct HTTP Errors so the UI SnackBar catches them
+      
       if (response.startsWith("Error") || response.startsWith("API Error") || 
           response.startsWith("Network Error") || response.startsWith("Config Error")) {
         throw Exception(response);
@@ -364,14 +364,14 @@ class AIService {
 
       String cleaned = response.trim();
 
-      // Aggressively aggressively strip out any conversational markdown Groq might have added
+      
       if (cleaned.contains('```json')) {
         cleaned = cleaned.split('```json')[1].split('```')[0].trim();
       } else if (cleaned.contains('```')) {
         cleaned = cleaned.split('```')[1].split('```')[0].trim();
       }
 
-      // Isolate the exact array wrapper
+      
       final startIndex = cleaned.indexOf('[');
       final endIndex = cleaned.lastIndexOf(']');
       
@@ -382,13 +382,13 @@ class AIService {
       }
 
       final List<dynamic> data = jsonDecode(cleaned);
-      // Safely map instead of blind casting to avoid _TypeError in Dart
+      // Safely map 
       return data.map((e) => Map<String, dynamic>.from(e as Map)).toList();
       
     } catch (e, stack) {
       AppLogger.error('Multiple choice quiz generation failed',
           tag: 'AIService', error: e, stackTrace: stack);
-      // Throwing the error up guarantees the UI SnackBar tells you EXACTLY what broke!
+      
       throw Exception('AI Parsing Error: $e'); 
     }
   }

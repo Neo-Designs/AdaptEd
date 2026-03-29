@@ -747,7 +747,6 @@ class _DashboardScreenState extends State<DashboardScreen>
         if (title == 'Upload a PDF') {
           _uploadDocument(context);
         } else if (title == 'Quiz me') {
-          // If Quiz, pop up the difficulty dialog directly!
           if (_extractedText.isEmpty) {
             ScaffoldMessenger.of(context).showSnackBar(SnackBar(
               content:
