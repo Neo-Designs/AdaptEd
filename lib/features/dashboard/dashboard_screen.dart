@@ -43,7 +43,6 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   List<Map<String, dynamic>> _messages = [];
 
-
   // ── Session management ────────────────────────────────────────────────────
   String? _activeSessionId;
   StreamSubscription<QuerySnapshot>? _chatSubscription;
@@ -55,6 +54,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   bool _isInitializingStt = false;
   bool _isAiTyping = false;
   String _extractedText = '';
+  bool _isLoadingMessages = true;
 
   // ── Typing animation ──────────────────────────────────────────────────────
   int? _typingMessageIndex;
@@ -150,6 +150,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     if (mounted) {
       setState(() {
         _activeSessionId = sessionId;
+        _isLoadingMessages = true;
         _messages = [];
       });
     }
@@ -161,6 +162,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           .toList();
       if (mounted) {
         setState(() => _messages = messages);
+        _isLoadingMessages = false;
         _scrollToBottom();
       }
     });
@@ -379,10 +381,10 @@ class _DashboardScreenState extends State<DashboardScreen>
     }
   }
 
-    void _listen() async {
+  void _listen() async {
     // 1. Aggressively request permission and initialize
     bool isReady = await _speech.initialize();
-    
+
     if (!isReady) {
       // 2. Alert the user if the microphone is blocked/denied!
       if (mounted) {
@@ -422,7 +424,6 @@ class _DashboardScreenState extends State<DashboardScreen>
       );
     }
   }
-
 
   void _showDifficultyDialog() {
     final theme = context.read<DynamicTheme>();
@@ -474,49 +475,55 @@ class _DashboardScreenState extends State<DashboardScreen>
         Scaffold(
           backgroundColor: theme.backgroundColor,
           drawer: _buildChatsDrawer(theme),
-                body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            
-            final double safeHeight = constraints.maxHeight < 650 ? 650 : constraints.maxHeight;
+          body: SafeArea(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final double safeHeight =
+                    constraints.maxHeight < 650 ? 650 : constraints.maxHeight;
 
-            return SingleChildScrollView(
-              physics: const ClampingScrollPhysics(), // Stops bounce effects on static screens
-              child: SizedBox(
-                height: safeHeight,
-                child: Column(
-                  children: [
-                    if (user != null)
-                      Padding(
-                        padding: EdgeInsets.fromLTRB(theme.interactivePadding,
-                            theme.interactivePadding, theme.interactivePadding, 0),
-                        child: _buildProfileHeader(theme, user.uid),
-                      ),
-                    const SizedBox(height: 16),
-                    
-                    // Chat Area dynamically fills available safeHeight
-                    Expanded(
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(
-                            horizontal: theme.interactivePadding),
-                        child: _buildChatArea(theme),
-                      ),
-                    ),
-                    
-                    // Review Section sits safely at the bottom
-                    Padding(
-                      padding: EdgeInsets.fromLTRB(theme.interactivePadding, 8,
-                          theme.interactivePadding, theme.interactivePadding),
-                      child: _buildReviewSection(theme),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        ),
-      ),
+                return SingleChildScrollView(
+                  physics:
+                      const ClampingScrollPhysics(), // Stops bounce effects on static screens
+                  child: SizedBox(
+                    height: safeHeight,
+                    child: Column(
+                      children: [
+                        if (user != null)
+                          Padding(
+                            padding: EdgeInsets.fromLTRB(
+                                theme.interactivePadding,
+                                theme.interactivePadding,
+                                theme.interactivePadding,
+                                0),
+                            child: _buildProfileHeader(theme, user.uid),
+                          ),
+                        const SizedBox(height: 16),
 
+                        // Chat Area dynamically fills available safeHeight
+                        Expanded(
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(
+                                horizontal: theme.interactivePadding),
+                            child: _buildChatArea(theme),
+                          ),
+                        ),
+
+                        // Review Section sits safely at the bottom
+                        Padding(
+                          padding: EdgeInsets.fromLTRB(
+                              theme.interactivePadding,
+                              8,
+                              theme.interactivePadding,
+                              theme.interactivePadding),
+                          child: _buildReviewSection(theme),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
         ),
         if (theme.readingRuler)
           _ReadingRuler(
@@ -664,8 +671,11 @@ class _DashboardScreenState extends State<DashboardScreen>
     return Column(
       children: [
         Expanded(
-          child:
-              hasMessages ? _buildMessagesList(theme) : _buildEmptyState(theme),
+          child: _isLoadingMessages
+              ? const Center(child: CircularProgressIndicator())
+              : hasMessages
+                  ? _buildMessagesList(theme)
+                  : _buildEmptyState(theme),
         ),
         const SizedBox(height: 8),
         _buildBottomInputBar(theme),
@@ -806,7 +816,6 @@ class _DashboardScreenState extends State<DashboardScreen>
         final msg = _messages[index];
         final isUser = msg['role'] == 'user';
 
-        
         if (msg['role'] == 'system_action') return const SizedBox.shrink();
 
         final isCurrentlyTyping = _typingMessageIndex == index;
@@ -886,7 +895,6 @@ class _DashboardScreenState extends State<DashboardScreen>
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          
           Visibility(
             visible: !isKeyboardOpen,
             child: Padding(
@@ -894,7 +902,6 @@ class _DashboardScreenState extends State<DashboardScreen>
               child: _buildQuickActionChips(theme),
             ),
           ),
-
           Padding(
             padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
             child: Row(
@@ -1030,7 +1037,6 @@ class _DashboardScreenState extends State<DashboardScreen>
           final chip = chips[index];
           return GestureDetector(
             onTap: () {
-              
               if (_extractedText.isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
@@ -1490,7 +1496,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                   setState(() => _reviewSubmitted = true);
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                      content: Text('⭐ ${'★' * _reviewStars} — Thank you!'),
+                      content: Text('${'⭐' * _reviewStars} — Thank you!'),
                       backgroundColor: theme.primaryColor,
                     ));
                   }
@@ -1517,28 +1523,27 @@ class _DashboardScreenState extends State<DashboardScreen>
     if (_activeSessionId == null || _extractedText.isEmpty) return;
 
     final sessionId = _activeSessionId!;
-    
+
     setState(() => _isAiTyping = true);
     _scrollToBottom();
 
     try {
-     
       final aiPrompt =
           "$prompt\n\n### SOURCE MATERIAL ###\n$_extractedText\n### END SOURCE MATERIAL ###";
 
-      
       final response = await _aiService.chatWithAI(
           aiPrompt, theme.traits.learningProfileName);
 
-      
-      await _firestoreService.saveChatMessage(sessionId, 'ai', response);
-
       if (mounted) {
-        setState(() => _isAiTyping = false);
-       
-        final newIndex = _messages.length - 1;
-        if (newIndex >= 0) _startTypingAnimation(newIndex, response);
+        setState(() {
+          _isAiTyping = false;
+        });
+
+        final expectedNewIndex = _messages.length;
+        _startTypingAnimation(expectedNewIndex, response);
       }
+
+      await _firestoreService.saveChatMessage(sessionId, 'ai', response);
     } catch (e) {
       if (mounted) setState(() => _isAiTyping = false);
       AppLogger.error('Quick Action Failed', error: e);
@@ -1578,6 +1583,14 @@ class _DashboardScreenState extends State<DashboardScreen>
           }
         },
       );
+
+      if (mounted) {
+        setState(() => _isAiTyping = false);
+
+
+        final expectedNewIndex = _messages.length;
+        _startTypingAnimation(expectedNewIndex, response);
+      }
       await _firestoreService.saveChatMessage(sessionId, 'ai', response);
 
       if (mounted) {
@@ -1615,6 +1628,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           const SnackBar(content: Text('You must be logged in to upload.')));
       return;
     }
+    final traits = Provider.of<DynamicTheme>(context, listen: false).traits;
 
     if (_activeSessionId == null) {
       _createNewSession();
@@ -1643,14 +1657,14 @@ class _DashboardScreenState extends State<DashboardScreen>
       try {
         final results = await Future.wait([
           _firestoreService.uploadPdfToStorage(bytes, fileName, user.uid),
-          
           compute((Uint8List b) {
             final PdfDocument document = PdfDocument(inputBytes: b);
             final text = PdfTextExtractor(document).extractText();
             document.dispose();
             return text;
           }, bytes),
-        ]);;
+        ]);
+        ;
         fileUrl = results[0];
         extractedText = results[1];
         setState(() => _extractedText = extractedText);
@@ -1658,10 +1672,9 @@ class _DashboardScreenState extends State<DashboardScreen>
         extractedText = '';
       }
 
-      if (!context.mounted) return;
-      final traits = Provider.of<DynamicTheme>(context, listen: false).traits;
+      if (!mounted) return;
       await _firestoreService.saveChatMessage(sessionId, 'ai',
-          'Reading $fileName and generating your personalised summary…');
+          'Reading $fileName and generating your personalized summary...');
 
       final String summary = await _aiService.generateAdaptiveSummary(
         extractedText,
@@ -1717,8 +1730,14 @@ class _DashboardScreenState extends State<DashboardScreen>
         }
       } catch (e) {
         if (!mounted) return;
+        
+        // Start animation before backend save to prevent flashing!
+        if (mounted) {
+          final expectedNewIndex = _messages.length;
+          _startTypingAnimation(expectedNewIndex, summary);
+        }
         await _firestoreService.saveChatMessage(sessionId, 'ai', summary);
-        // ← ADD typing animation
+
         if (mounted) {
           final newIndex = _messages.length - 1;
           if (newIndex >= 0) {
@@ -1738,13 +1757,14 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   Future<void> _uploadDocumentFromText(
       String extractedText, String fileName) async {
+    final traits = Provider.of<DynamicTheme>(context, listen: false).traits;
+
     final user = _firestoreService.currentUser;
     if (user == null || _activeSessionId == null) return;
     final sessionId = _activeSessionId!;
 
     setState(() => _isUploading = true);
     if (!mounted) return;
-    final traits = Provider.of<DynamicTheme>(context, listen: false).traits;
 
     await _firestoreService.saveChatMessage(
         sessionId, 'ai', 'Re-analyzing $fileName for a new summary...');
@@ -1809,8 +1829,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   // ── Neuro Card ────────────────────────────────────────────────────────────
   Widget _buildNeuroCard(
       String title, String content, String icon, DynamicTheme theme) {
-      final Color bgColor = theme.surfaceVariantColor;
-
+    final Color bgColor = theme.surfaceVariantColor;
 
     final cardTextColor = theme.isDarkMode ? Colors.white : Colors.black87;
     TextStyle baseTextStyle;
@@ -1876,7 +1895,6 @@ class _DashboardScreenState extends State<DashboardScreen>
     final double wSpacing = isDyslexic ? 2.0 : 0.0;
     const double hght = 1.6;
 
-    
     final textColor = theme.isDarkMode ? Colors.white : Colors.black87;
 
     TextStyle baseTextStyle;
@@ -2202,7 +2220,7 @@ class _TypewriterMarkdownState extends State<TypewriterMarkdown> {
   int _currentIndex = 0;
   bool _isTyping = true;
   Timer? _timer;
-  List<int> _safeRunes = []; 
+  List<int> _safeRunes = [];
 
   @override
   void initState() {
@@ -2237,15 +2255,15 @@ class _TypewriterMarkdownState extends State<TypewriterMarkdown> {
         return;
       }
 
-      
       final batchSize = _safeRunes.length > 1000 ? 4 : 1;
       _currentIndex = (_currentIndex + batchSize).clamp(0, _safeRunes.length);
 
-      setState(() {
-        
-        _displayedText =
-            String.fromCharCodes(_safeRunes.sublist(0, _currentIndex));
-      });
+      if (mounted) {
+        setState(() {
+          _displayedText =
+              String.fromCharCodes(_safeRunes.sublist(0, _currentIndex));
+        });
+      }
     });
   }
 
