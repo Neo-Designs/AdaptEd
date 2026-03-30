@@ -1586,7 +1586,6 @@ class _DashboardScreenState extends State<DashboardScreen>
       if (mounted) {
         setState(() => _isAiTyping = false);
 
-
         final expectedNewIndex = _messages.length;
         _startTypingAnimation(expectedNewIndex, response);
       }
@@ -1672,7 +1671,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       }
 
       if (!mounted) return;
-      await _firestoreService.saveChatMessage(sessionId, 'ai',
+      _firestoreService.saveChatMessage(sessionId, 'ai',
           'Reading $fileName and generating your personalized summary...');
 
       final String summary = await _aiService.generateAdaptiveSummary(
@@ -1704,7 +1703,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           .update({'title': fileName, 'pdfName': fileName});
 
       if (!mounted) return;
-      await _firestoreService.saveChatMessage(sessionId, 'ai',
+      _firestoreService.saveChatMessage(sessionId, 'ai',
           'Here is your personalised summary for **$fileName**:');
 
       try {
@@ -1725,11 +1724,11 @@ class _DashboardScreenState extends State<DashboardScreen>
           if (!mounted) break;
           final chunkString = jsonEncode([chunk]);
           await _firestoreService.saveChatMessage(sessionId, 'ai', chunkString);
-          await Future.delayed(const Duration(milliseconds: 1000));
+          await Future.delayed(const Duration(milliseconds: 100));
         }
       } catch (e) {
         if (!mounted) return;
-        
+
         // Start animation before backend save to prevent flashing!
         if (mounted) {
           final expectedNewIndex = _messages.length;
